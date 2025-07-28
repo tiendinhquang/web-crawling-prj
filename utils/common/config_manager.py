@@ -14,7 +14,7 @@ logging = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-BASE_DIR = os.getenv("PYTHONPATH")
+BASE_DIR = '/opt/airflow'
 
 
 class ConfigError(Exception):

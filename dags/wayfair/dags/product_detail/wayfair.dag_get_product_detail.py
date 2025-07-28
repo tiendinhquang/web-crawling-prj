@@ -73,9 +73,9 @@ class WayfairGetProductDetail(BaseSourceDAG):
         sku = metadata['payload']['sku']
         selected_options = metadata.get('payload').get('selected_options', [])
         if selected_options:
-            return f'{sku}_{'_'.join(selected_options)}.json'
+            return f"{sku}_{'_'.join(selected_options)}.json"
         else:
-            return f'{sku}.json'    
+            return f"{sku}.json"    
     
             
             

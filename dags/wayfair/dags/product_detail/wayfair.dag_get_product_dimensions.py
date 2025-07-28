@@ -54,9 +54,9 @@ class WayfairGetProductInfo(BaseSourceDAG):
             raise ValueError("SKU not found in metadata")
             
         if selected_options:
-            return f'{sku}_{'_'.join(selected_options)}.json'
+            return f"{sku}_{'_'.join(selected_options)}.json"
         else:
-            return f'{sku}.json'
+            return f"{sku}.json"
             
             
 
