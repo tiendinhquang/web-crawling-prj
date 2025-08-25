@@ -284,7 +284,7 @@ class DataTransformer:
         self.config = config
         logging.info("DataTransformer initialized successfully")
     
-    def add_metadata_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+    def add_metadata_columns(self, df: pd.DataFrame, from_src: str) -> pd.DataFrame:
         """
         Adds standard metadata fields to each row for auditing/versioning purposes.
 
@@ -313,9 +313,9 @@ class DataTransformer:
             df['row_is_latest'] = self.config.row_is_latest
             df['row_is_delete'] = self.config.row_is_delete
             df['row_version_number'] = self.config.row_version_number
-            df['from_src'] = self.config.from_src
             df['created_at'] = now
             df['modified_at'] = now
+            df['from_src'] = from_src
             
             logging.info(f"Added metadata columns to DataFrame: {len(df)} rows")
             return df
@@ -513,20 +513,22 @@ class UniversalDataLoader:
     Supports both full and incremental load modes using mapping configuration.
     """
     
-    def __init__(self, db_engine: Optional[Engine] = None, config: Optional[ETLConfig] = None):
+    def __init__(self, db_engine: Optional[Engine] = None, config: Optional[ETLConfig] = None, default_chunk_size: int = 10000):
         """
         Initialize the universal data loader.
         
         Args:
             db_engine: SQLAlchemy engine instance (optional)
             config: ETL configuration object (optional)
+            default_chunk_size: Default chunk size for processing large DataFrames (default: 10000)
         """
         try:
             self.db_engine = db_engine or DBConnection().engine
             self.config = config or ETLConfig()
+            self.default_chunk_size = default_chunk_size
             self.transformer = DataTransformer(self.config)
             self.writer = DatabaseWriter(self.db_engine)
-            logging.info("UniversalDataLoader initialized successfully")
+            logging.info("UniversalDataLoader initialized successfully with default chunk size: {default_chunk_size:,}")
         except Exception as e:
             logging.error(f"Failed to initialize UniversalDataLoader: {e}")
             raise DataLoaderError(f"Failed to initialize UniversalDataLoader: {e}")
@@ -604,21 +606,20 @@ class UniversalDataLoader:
             
             # Select only required columns
             if 'cols_to_insert' in table_cfg:
-                df = df[table_cfg['cols_to_insert']]
+                df = df[table_cfg['cols_to_insert'] + table_cfg['etl_cols']]
                 logging.info(f"Selected {len(table_cfg['cols_to_insert'])} columns for insertion")
 
-            # Add hash key
-            df = self.transformer.add_hash_key(df, table_cfg['hash_cols'])
             
             # Rename columns``
             df = self.transformer.rename_columns(df, table_cfg['mapping_cols'])
-            
+            # Add hash key
+            df = self.transformer.add_hash_key(df, table_cfg['hash_cols'])
             # Get table details
             schema = table_cfg["des_schema"]
             table = table_cfg["des_table"]
             
             # Add metadata columns
-            df = self.transformer.add_metadata_columns(df)
+            df = self.transformer.add_metadata_columns(df, table_cfg['from_src'])
             
             # Truncate table before insert
             self.writer.truncate_table(schema, table)
@@ -635,7 +636,7 @@ class UniversalDataLoader:
             logging.error(f"Unexpected error in full load for {table_code}: {e}")
             raise DataLoaderError(f"Unexpected error in full load for {table_code}: {e}")
     
-    def iload_to_db(self, table_code: str, tmp_table: str, df: pd.DataFrame) -> None:
+    def iload_to_db(self, table_code: str, tmp_table: str, df: pd.DataFrame, chunk_size: Optional[int] = None) -> None:
         """
         Performs incremental load with row versioning and change detection.
 
@@ -643,6 +644,7 @@ class UniversalDataLoader:
             table_code: Configuration key for table mapping
             tmp_table: Name of temporary table for staging
             df: DataFrame to load
+            chunk_size: Number of rows to process in each chunk (uses default_chunk_size if None)
             
         Raises:
             DataLoaderError: If loading fails
@@ -652,6 +654,7 @@ class UniversalDataLoader:
             - Get mapping config for the target table.
             - Add hash key to detect changes.
             - Rename and enrich columns with metadata.
+            - Process DataFrame in chunks to avoid memory issues.
             - Create a temporary table and insert incoming records.
             - Compare temp vs target table by primary key and hash:
                 - If hash differs → update `row_is_latest`, `row_end_date`, insert new version.
@@ -661,6 +664,7 @@ class UniversalDataLoader:
         Use when:
             - You want to track historical changes.
             - Handling upserts with audit/version control.
+            - Processing large DataFrames that might cause memory issues.
         """
         try:
             if not table_code or not table_code.strip():
@@ -694,7 +698,7 @@ class UniversalDataLoader:
             df = self.transformer.rename_columns(df, table_cfg['mapping_cols'])
             
             # Add metadata columns
-            df = self.transformer.add_metadata_columns(df)
+            df = self.transformer.add_metadata_columns(df, table_cfg['from_src'])
             
             # Get table details
             schema = table_cfg["des_schema"]
@@ -703,14 +707,70 @@ class UniversalDataLoader:
             now = dt.datetime.now()
 
             logging.info(f"🔄 Processing {schema}.{table}, number of rows: {len(df)}")
+            logging.info(f"Columns to be inserted: {des_cols}")
+            if 'from_src' in des_cols:
+                logging.info(f"from_src values in DataFrame: {df['from_src'].unique()}")
             
+            # Use default chunk size if none provided
+            if chunk_size is None:
+                chunk_size = self.default_chunk_size
+            
+            # Process DataFrame in chunks if it's large
+            total_rows = len(df)
+            if total_rows > chunk_size:
+                logging.info(f"📦 Large DataFrame detected ({total_rows:,} rows). Processing in chunks of {chunk_size:,}")
+                chunks_processed = 0
+                
+                for start_idx in range(0, total_rows, chunk_size):
+                    end_idx = min(start_idx + chunk_size, total_rows)
+                    chunk_df = df.iloc[start_idx:end_idx].copy()
+                    chunks_processed += 1
+                    
+                    logging.info(f"🔄 Processing chunk {chunks_processed}/{(total_rows + chunk_size - 1) // chunk_size} "
+                               f"({start_idx + 1:,} to {end_idx:,} of {total_rows:,} rows)")
+                    
+                    self._process_chunk_upsert(chunk_df, table_cfg, tmp_table, schema, table, des_cols, now)
+                    
+                logging.info(f"✅ All {chunks_processed} chunks processed successfully")
+            else:
+                logging.info(f"📦 Processing DataFrame as single chunk ({total_rows:,} rows)")
+                self._process_chunk_upsert(df, table_cfg, tmp_table, schema, table, des_cols, now)
+            
+            logging.info(f"✅ Incremental load completed successfully for {table_code}")
+            
+        except DataLoaderError:
+            # Re-raise DataLoaderError from other methods
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error in incremental load for {table_code}: {e}")
+            raise DataLoaderError(f"Unexpected error in incremental load for {table_code}: {e}")
+    
+    def _process_chunk_upsert(self, chunk_df: pd.DataFrame, table_cfg: Dict[str, Any], tmp_table: str, 
+                       schema: str, table: str, des_cols: List[str], now: dt.datetime) -> None:
+        """
+        Process a single chunk of data for incremental load.
+        
+        Args:
+            chunk_df: DataFrame chunk to process
+            table_cfg: Table configuration dictionary
+            tmp_table: Temporary table name
+            schema: Database schema name
+            table: Table name
+            des_cols: Destination columns list
+            now: Current timestamp
+            
+        Raises:
+            DataLoaderError: If processing fails
+        """
+        try:
             # Create temporary table
             create_tmp_table_q = f"""
                 CREATE TEMPORARY TABLE {tmp_table} AS
                 SELECT * FROM {schema}.{table}
                 WHERE 1 = 0
             """
-
+            # Drop temporary table if it exists
+            drop_tmp_table_q = f"DROP TABLE IF EXISTS {tmp_table}"
             # Update row version for changed records
             update_row_version_q = f"""
                 UPDATE {tmp_table} t1
@@ -745,25 +805,23 @@ class UniversalDataLoader:
 
             with self.db_engine.begin() as conn:
                 conn.execute(text(create_tmp_table_q))
-                df.to_sql(tmp_table, conn, index=False, if_exists='append', method='multi')
+                chunk_df.to_sql(tmp_table, conn, index=False, if_exists='append', method='multi')
                 conn.execute(text(update_row_version_q))
                 conn.execute(text(main_table_q))
+                conn.execute(text(drop_tmp_table_q))
+            logging.info(f"✅ Chunk processed successfully: {len(chunk_df):,} rows")
             
-            logging.info(f"✅ Incremental load completed successfully for {table_code}")
-            
-        except DataLoaderError:
-            # Re-raise DataLoaderError from other methods
-            raise
         except Exception as e:
-            logging.error(f"Unexpected error in incremental load for {table_code}: {e}")
-            raise DataLoaderError(f"Unexpected error in incremental load for {table_code}: {e}")
+            logging.error(f"Error processing chunk: {e}")
+            raise DataLoaderError(f"Error processing chunk: {e}")
     
     def load_data_to_db(
         self, 
         df: pd.DataFrame, 
         table_key: str, 
         db_engine: Optional[Engine] = None,
-        load_type: str = "full"
+        load_type: str = "full",
+        chunk_size: Optional[int] = None
     ) -> None:
         """
         Main entry point for loading data to the database.
@@ -775,6 +833,7 @@ class UniversalDataLoader:
             table_key: Key to retrieve table mapping config
             db_engine: Optional database engine
             load_type: 'full' (truncate and reload) or 'incremental' (upsert with history)
+            chunk_size: Number of rows to process in each chunk for incremental loads (default: 10000)
             
         Raises:
             DataLoaderError: If loading fails
@@ -800,7 +859,7 @@ class UniversalDataLoader:
             if load_type.lower() == "incremental":
                 # For incremental load, we need a temporary table name
                 tmp_table = f"tmp_{table_key.replace('.', '_')}"
-                self.iload_to_db(table_key, tmp_table, df)
+                self.iload_to_db(table_key, tmp_table, df, chunk_size)
             else:
                 # Full load
                 self.fload_to_db(df, table_key)
@@ -845,7 +904,7 @@ class DataLoader:
         """
         self.universal_loader.fload_to_db(df, table_code)
     
-    def iload_to_db(self, table_code: str, tmp_table: str, df: pd.DataFrame) -> None:
+    def iload_to_db(self, table_code: str, tmp_table: str, df: pd.DataFrame, chunk_size: Optional[int] = None) -> None:
         """
         Incremental load to database - backward compatibility.
         
@@ -853,8 +912,9 @@ class DataLoader:
             table_code: Configuration key for table mapping
             tmp_table: Name of temporary table for staging
             df: DataFrame to load
+            chunk_size: Number of rows to process in each chunk (uses default_chunk_size if None)
         """
-        self.universal_loader.iload_to_db(table_code, tmp_table, df)
+        self.universal_loader.iload_to_db(table_code, tmp_table, df, chunk_size)
 
 
 # Global instances for convenience
@@ -896,7 +956,7 @@ def fload_data_to_db(df: pd.DataFrame, table_key: str, db_engine: Optional[Engin
     loader.fload_to_db(df, table_key)
 
 
-def iload_data_to_db(table_key: str, tmp_table: str, df: pd.DataFrame, db_engine: Optional[Engine] = None) -> None:
+def iload_data_to_db(table_key: str, tmp_table: str, df: pd.DataFrame, db_engine: Optional[Engine] = None, chunk_size: Optional[int] = None) -> None:
     """
     Incremental load data to database - convenience function.
     
@@ -905,21 +965,23 @@ def iload_data_to_db(table_key: str, tmp_table: str, df: pd.DataFrame, db_engine
         tmp_table: Name of temporary table for staging
         df: DataFrame to load
         db_engine: Optional database engine
+        chunk_size: Number of rows to process in each chunk (uses default_chunk_size if None)
         
     Raises:
         DataLoaderError: If loading fails
     """
     loader = UniversalDataLoader(db_engine)
-    loader.iload_to_db(table_key, tmp_table, df)
+    loader.iload_to_db(table_key, tmp_table, df, chunk_size)
 
 
 
 
 
 
-if __name__ == "__main__":
-    df = pd.read_csv('data/sellercloud/output/20250703065600.csv')
-    df2 = pd.read_csv('data/sellercloud/output/20250703063435.csv')
+# if __name__ == "__main__":
+#     df = pd.read_csv('data/criteo/2025/8/8/output/capout_report_2025-08-08.csv')
+
+#     iload_data_to_db('lowes.capout_report', 'tmp_capout_report', df)
 
 
 

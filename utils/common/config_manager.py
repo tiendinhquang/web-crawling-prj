@@ -6,15 +6,19 @@ from dotenv import load_dotenv
 from typing import Dict, Any, Optional, List, Union
 import yaml
 from pathlib import Path
+import sys
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logging = logging.getLogger(__name__)
 
-# Load environment variables
+
 load_dotenv()
 
-BASE_DIR = '/opt/airflow'
+
+BASE_DIR = Path(__file__).resolve().parents[2]   
+
+
+sys.path.append(str(BASE_DIR))
 
 
 class ConfigError(Exception):
@@ -192,7 +196,7 @@ class HeaderConfigLoader(JsonConfigLoader):
                 logging.warning(f"No configuration loaded, returning empty dict for header: {header_name}")
                 return {}
             
-            header_config = self.config.get(header_name, {})
+            header_config = self.config.get(header_name, None)
             if not header_config:
                 logging.warning(f"Header configuration not found for: {header_name}")
             
@@ -202,6 +206,52 @@ class HeaderConfigLoader(JsonConfigLoader):
         except Exception as e:
             logging.error(f"Error loading header configuration for '{header_name}': {e}")
             return {}
+
+    def update_header(self, header_name: str, new_headers: Dict[str, Any]) -> bool:
+        """
+        Update header configuration for a specific header name.
+        
+        Args:
+            header_name: Name of the header configuration to update
+            new_headers: New header configuration dictionary
+            
+        Returns:
+            bool: True if update was successful, False otherwise
+            
+        Raises:
+            ValueError: If header_name is empty or invalid
+            ConfigError: If update operation fails
+        """
+        if not header_name or not header_name.strip():
+            logging.error("Header name cannot be empty")
+            raise ValueError("Header name cannot be empty")
+        
+        if not isinstance(new_headers, dict):
+            logging.error("New headers must be a dictionary")
+            raise ValueError("New headers must be a dictionary")
+        
+        try:
+            # Reload config to get latest version
+            self.config = self.load_config()
+            
+            if not self.config:
+                logging.error("No configuration loaded, cannot update headers")
+                raise ConfigError("No configuration loaded, cannot update headers")
+            
+            # Update the header configuration
+            self.config[header_name] = new_headers
+            
+            # Save the updated configuration back to file
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=4, ensure_ascii=False)
+            
+            logging.info(f"Successfully updated header configuration for '{header_name}' with {len(new_headers)} items")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Error updating header configuration for '{header_name}': {e}")
+            raise ConfigError(f"Error updating header configuration for '{header_name}': {e}")
+
 
 
 class CookieConfigLoader(JsonConfigLoader):
@@ -223,74 +273,68 @@ class CookieConfigLoader(JsonConfigLoader):
             
         Raises:
             ValueError: If cookie_name is empty or invalid
-        """
-        if not cookie_name or not cookie_name.strip():
-            logging.error("Cookie name cannot be empty")
-            raise ValueError("Cookie name cannot be empty")
-        
+        """        
         try:
             if not self.config:
                 logging.warning(f"No configuration loaded, returning empty dict for cookie: {cookie_name}")
                 return {}
             
-            cookie_config = self.config.get(cookie_name, {})
+            cookie_config = self.config.get(cookie_name, None)
             if not cookie_config:
                 logging.warning(f"Cookie configuration not found for: {cookie_name}")
             
-            logging.debug(f"Loaded cookie configuration for '{cookie_name}': {len(cookie_config)} items")
             return cookie_config
             
         except Exception as e:
             logging.error(f"Error loading cookie configuration for '{cookie_name}': {e}")
             return {}
 
-
-class KeywordListLoader(JsonConfigLoader):
-    """
-    Specialized loader for keyword list configurations.
-    
-    Extends JsonConfigLoader to provide keyword filtering functionality.
-    """
-    
-    def load(self, ignore_keywords: Optional[List[str]] = None) -> List[str]:
+    def update_cookie(self, cookie_name: str, new_cookies: Dict[str, Any]) -> bool:
         """
-        Load keyword list with optional filtering.
+        Update cookie configuration for a specific cookie name.
         
         Args:
-            ignore_keywords: List of keywords to exclude from the result
+            cookie_name: Name of the cookie configuration to update
+            new_cookies: New cookie configuration dictionary
             
         Returns:
-            List[str]: Filtered list of keywords
+            bool: True if update was successful, False otherwise
             
         Raises:
-            ValueError: If ignore_keywords contains invalid values
+            ValueError: If cookie_name is empty or invalid
+            ConfigError: If update operation fails
         """
+        if not cookie_name or not cookie_name.strip():
+            logging.error("Cookie name cannot be empty")
+            raise ValueError("Cookie name cannot be empty")
+        
+        if not isinstance(new_cookies, dict):
+            logging.error("New cookies must be a dictionary")
+            raise ValueError("New cookies must be a dictionary")
+        
         try:
-            ignore_keywords = ignore_keywords or []
-            
-            # Validate ignore_keywords
-            if not isinstance(ignore_keywords, list):
-                logging.error(f"ignore_keywords must be a list, got {type(ignore_keywords)}")
-                raise ValueError(f"ignore_keywords must be a list, got {type(ignore_keywords)}")
+            # Reload config to get latest version
+            self.config = self.load_config()
             
             if not self.config:
-                logging.warning("No configuration loaded, returning empty keyword list")
-                return []
+                logging.error("No configuration loaded, cannot update cookies")
+                raise ConfigError("No configuration loaded, cannot update cookies")
             
-            keywords = self.config.get("keyword_list", [])
-            if not isinstance(keywords, list):
-                logging.error(f"keyword_list must be a list in config, got {type(keywords)}")
-                return []
+            # Update the cookie configuration
+            self.config[cookie_name] = new_cookies
             
-            # Filter out ignored keywords
-            filtered_keywords = [k for k in keywords if k not in ignore_keywords]
+            # Save the updated configuration back to file
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=4, ensure_ascii=False)
             
-            logging.info(f"Loaded {len(filtered_keywords)} keywords (filtered from {len(keywords)} total)")
-            return filtered_keywords
+            logging.info(f"Successfully updated cookie configuration for '{cookie_name}' with {len(new_cookies)} items")
+            return True
             
         except Exception as e:
-            logging.error(f"Error loading keyword list: {e}")
-            return []
+            logging.error(f"Error updating cookie configuration for '{cookie_name}': {e}")
+            raise ConfigError(f"Error updating cookie configuration for '{cookie_name}': {e}")
+
+
 
 
 class MappingConfigLoader(YamlConfigLoader):
@@ -344,7 +388,7 @@ class MappingConfigLoader(YamlConfigLoader):
 
 
 # ==== Wrapper Functions ====
-def get_header_config(header_name: str) -> Dict[str, Any]:
+def get_header_config(header_name: str, path= None) -> Dict[str, Any]:
     """
     Convenience function to get header configuration.
     
@@ -375,7 +419,38 @@ def get_header_config(header_name: str) -> Dict[str, Any]:
         raise ConfigError(f"Unexpected error getting header config for '{header_name}': {e}")
 
 
-def get_cookie_config(cookie_name: str) -> Dict[str, Any]:
+def update_header_config(header_name: str, new_headers: Dict[str, Any], path= None) -> bool:
+    """
+    Convenience function to update header configuration.
+    
+    Args:
+        header_name: Name of the header configuration to update
+        new_headers: New header configuration dictionary
+        
+    Returns:
+        bool: True if update was successful, False otherwise
+        
+    Raises:
+        ConfigError: If configuration update fails
+        ValueError: If header_name or new_headers are invalid
+    """
+    try:
+        if not BASE_DIR:
+            logging.error("BASE_DIR environment variable not set")
+            raise ConfigError("BASE_DIR environment variable not set")
+        if not path:
+            config_path = os.path.join(BASE_DIR, "config", "headers_config.json")
+            config_loader = HeaderConfigLoader(config_path)
+        return config_loader.update_header(header_name, new_headers)
+        
+    except ConfigError:
+        # Re-raise ConfigError from HeaderConfigLoader
+        raise
+    except Exception as e:
+        logging.error(f"Unexpected error updating header config for '{header_name}': {e}")
+        raise ConfigError(f"Unexpected error updating header config for '{header_name}': {e}")
+
+def get_cookie_config(cookie_name: str, path= None) -> Dict[str, Any]:
     """
     Convenience function to get cookie configuration.
     
@@ -393,8 +468,9 @@ def get_cookie_config(cookie_name: str) -> Dict[str, Any]:
         if not BASE_DIR:
             logging.error("BASE_DIR environment variable not set")
             raise ConfigError("BASE_DIR environment variable not set")
-        
-        config_path = os.path.join(BASE_DIR, "config", "cookies_config.json")
+        if not path:
+            config_path = os.path.join(BASE_DIR, "config", "cookies_config.json")
+            config_loader = CookieConfigLoader(config_path)
         config_loader = CookieConfigLoader(config_path)
         return config_loader.load(cookie_name)
         
@@ -404,6 +480,38 @@ def get_cookie_config(cookie_name: str) -> Dict[str, Any]:
     except Exception as e:
         logging.error(f"Unexpected error getting cookie config for '{cookie_name}': {e}")
         raise ConfigError(f"Unexpected error getting cookie config for '{cookie_name}': {e}")
+
+
+def update_cookie_config(cookie_name: str, new_cookies: Dict[str, Any], path= None) -> bool:
+    """
+    Convenience function to update cookie configuration.
+    
+    Args:
+        cookie_name: Name of the cookie configuration to update
+        new_cookies: New cookie configuration dictionary
+        
+    Returns:
+        bool: True if update was successful, False otherwise
+        
+    Raises:
+        ConfigError: If configuration update fails
+        ValueError: If cookie_name or new_cookies are invalid
+    """
+    try:
+        if not BASE_DIR:
+            logging.error("BASE_DIR environment variable not set")
+            raise ConfigError("BASE_DIR environment variable not set")
+        if not path:
+            config_path = os.path.join(BASE_DIR, "config", "cookies_config.json")
+            config_loader = CookieConfigLoader(config_path)
+        return config_loader.update_cookie(cookie_name, new_cookies)
+        
+    except ConfigError:
+        # Re-raise ConfigError from CookieConfigLoader
+        raise
+    except Exception as e:
+        logging.error(f"Unexpected error updating cookie config for '{cookie_name}': {e}")
+        raise ConfigError(f"Unexpected error updating cookie config for '{cookie_name}': {e}")
 
 
 def get_mapping_config(table_code: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -439,39 +547,6 @@ def get_mapping_config(table_code: Optional[str] = None) -> Optional[Dict[str, A
 
 # # Example usage and testing
 # if __name__ == '__main__':
-#     try:
-#         # Test configuration loading
-#         logger.info("Testing configuration loading...")
-        
-#         # Test header config
-#         try:
-#             header_config = get_header_config("wayfair_product_list")
-#             logger.info(f"Header config loaded: {len(header_config)} items")
-#         except Exception as e:
-#             logger.warning(f"Header config test failed: {e}")
-        
-#         # Test cookie config
-#         try:
-#             cookie_config = get_cookie_config("wayfair_product_list")
-#             logger.info(f"Cookie config loaded: {len(cookie_config)} items")
-#         except Exception as e:
-#             logger.warning(f"Cookie config test failed: {e}")
-        
-#         # Test mapping config
-#         try:
-#             mapping_config = get_mapping_config()
-#             if mapping_config:
-#                 logger.info(f"Mapping config loaded: {len(mapping_config)} tables")
-#             else:
-#                 logger.warning("No mapping config found")
-#         except Exception as e:
-#             logger.warning(f"Mapping config test failed: {e}")
-        
-#         logger.info("Configuration testing completed")
-        
-#     except Exception as e:
-#         logger.error(f"Error in main execution: {e}")
-#         print(f"Error: {e}")
-
-
+#     config = get_mapping_config('wayfair.product_skus')
+#     print(config)
 

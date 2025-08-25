@@ -81,12 +81,16 @@ class TeamsNotificationHandler(BaseNotificationHandler):
             self.config = yaml.safe_load(file)
         self.success_webhook_url = self.config['SUCCESS_CHANNEL']
         self.failure_webhook_url = self.config['FAILURE_CHANNEL']
-
-    def send_notification(self, context, custom_msg=None, is_success=True):
-        if is_success:
+        self.sla_webhook_url = self.config['SLA_CHANNEL']
+    def send_notification(self, context, custom_msg=None, status=None):
+        if status == 'success':
             webhook_url = self.success_webhook_url
-        else:
+        elif status == 'failure':
             webhook_url = self.failure_webhook_url
+        elif status == 'sla':
+            webhook_url = self.sla_webhook_url
+        else:
+            raise ValueError(f"Invalid status: {status}")
         payload = self._build_airflow_dag_run_structure(context, custom_msg)
 
         response = requests.post(
@@ -101,9 +105,11 @@ class TeamsNotificationHandler(BaseNotificationHandler):
 
 def send_success_notification(context, custom_msg=None):
     noti = TeamsNotificationHandler()
-    noti.send_notification(context, custom_msg, is_success=True)
+    noti.send_notification(context, custom_msg, status='success')
     
 def send_failure_notification(context, custom_msg=None):
     noti = TeamsNotificationHandler()
-    noti.send_notification(context, custom_msg, is_success=False)
-
+    noti.send_notification(context, custom_msg, status='failure')
+def send_sla_notification(context, custom_msg=None):
+    noti = TeamsNotificationHandler()
+    noti.send_notification(context, custom_msg, status='sla')

@@ -3,7 +3,7 @@ from services.request_client import SourceConfig, WayfairApiType, create_source_
 from utils.common.metadata_manager import get_latest_folder
 
 
-from dags.notification_handler import send_failure_notification
+from services.notification_handler import send_failure_notification
 import json
 import os
 import logging
@@ -23,7 +23,16 @@ class WayfairGetProductInfo(BaseSourceDAG):
                     'selected_options': item['options'],
                     'url': PRODUCT_INFO.api_url,
                     'method': 'POST',
-              
+                    # This API requires JSON payload in request body
+                    'payload': {
+                        'variables': {
+                            'sku': item['sku'],
+                            'selectedOptionIds': item['options'],
+                            'energyLabelContext': 'PDPCAROUSEL',
+                        },
+                    },
+                    # No URL parameters needed for this API
+                    'params': None
                 }
                 for item in all_items
             ]
@@ -36,7 +45,16 @@ class WayfairGetProductInfo(BaseSourceDAG):
                     'selected_options': item['options'],
                     'url': PRODUCT_INFO.api_url,
                     'method': 'POST',
-              
+                    # This API requires JSON payload in request body
+                    'payload': {
+                        'variables': {
+                            'sku': item['sku'],
+                            'selectedOptionIds': item['options'],
+                            'energyLabelContext': 'PDPCAROUSEL',
+                        },
+                    },
+                    # No URL parameters needed for this API
+                    'params': None
                 }
                 for item in failed_items
             ]
@@ -67,6 +85,7 @@ from airflow.utils.dates import days_ago
 
 @dag(
     dag_id='wayfair.dag_get_product_info',
+    tags=["wayfair", "product_info"],
     description='Get Wayfair product info by SKU',
     schedule_interval=None,
     start_date=days_ago(1),

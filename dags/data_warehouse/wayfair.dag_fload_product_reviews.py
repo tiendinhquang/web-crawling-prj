@@ -1,9 +1,9 @@
-from dags.data_warehouse.base_wayfair_db_load import BaseWayfairDBLoad
+from dags.data_warehouse.base_db_load_dag import BaseDBLoadDAG
 from utils.common.file_loader import read_csv
 import pandas as pd
 from airflow.decorators import dag
 
-class WayfairProductReviewsDBFLoad(BaseWayfairDBLoad):
+class WayfairProductReviewsDBFLoad(BaseDBLoadDAG):
     def __init__(self):
         super().__init__('wayfair.product_reviews')
     def process_data(self):

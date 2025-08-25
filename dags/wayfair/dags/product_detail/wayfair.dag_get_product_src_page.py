@@ -10,7 +10,7 @@ from airflow.utils.dates import days_ago
 from utils.common.metadata_manager import get_latest_folder
 from utils.common.proxy_manager import get_working_proxies_sync
 from utils.common.config_manager import get_header_config, get_cookie_config
-from dags.notification_handler import send_success_notification, send_failure_notification
+from services.notification_handler import send_success_notification, send_failure_notification
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Tuple
 import time

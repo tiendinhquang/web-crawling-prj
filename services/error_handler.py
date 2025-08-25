@@ -473,15 +473,6 @@ def create_error_handler(
             proxy_error_retries=2,
             api_error_retries=0  # Don't retry API errors for Walmart
         )
-    elif source == "sellercloud":
-        retry_config = retry_config or RetryConfig(
-            max_retries=3,
-            network_error_retries=5,
-            rate_limit_retries=3,
-            timeout_retries=3,
-            authentication_error_retries=1,
-            token_expired_retries=1
-        )
     else:
         retry_config = retry_config or RetryConfig()
     

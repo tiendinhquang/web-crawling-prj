@@ -3,7 +3,7 @@ from services.request_client import SourceConfig, WayfairApiType, create_source_
 from utils.common.metadata_manager import get_latest_folder
 
 
-from dags.notification_handler import send_failure_notification
+from services.notification_handler import send_failure_notification
 import json
 import os
 import logging
@@ -36,9 +36,11 @@ class WayfairGetProductDetail(BaseSourceDAG):
             all_results = [
                 {
                     'sku': item['sku'],
-                    'url': item['url'],
                     'method': 'POST',
-                    'url': 'https://www.wayfair.com/a/product/get_joined_product'
+                    'url': 'https://www.wayfair.com/a/product/get_joined_product',
+                    'params': {
+                        'sku': item['sku']
+                    }
                 }
                 for item in all_results
             ]
@@ -61,6 +63,7 @@ class WayfairGetProductDetail(BaseSourceDAG):
         
         if mode == 'all':
             all_items = get_all_items()
+
             return all_items
         elif mode == 'failed':
             all_items = get_all_items()
@@ -70,12 +73,8 @@ class WayfairGetProductDetail(BaseSourceDAG):
         else:
             raise ValueError(f"Unsupported mode: {mode}")
     def build_file_name(self, metadata):
-        sku = metadata['payload']['sku']
-        selected_options = metadata.get('payload').get('selected_options', [])
-        if selected_options:
-            return f"{sku}_{'_'.join(selected_options)}.json"
-        else:
-            return f"{sku}.json"    
+        sku = metadata['sku']
+        return f"{sku}.json"    
     
             
             
@@ -86,6 +85,7 @@ from airflow.utils.dates import days_ago
 
 @dag(
     dag_id='wayfair.dag_get_product_detail',
+    tags=["wayfair", "product_detail"],
     description='Get Wayfair product detail by SKU',
     schedule_interval=None,
     start_date=days_ago(1),

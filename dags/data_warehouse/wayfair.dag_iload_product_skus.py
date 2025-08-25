@@ -1,15 +1,16 @@
-from dags.data_warehouse.base_wayfair_db_load import BaseWayfairDBLoad
+from dags.data_warehouse.base_db_load_dag import BaseDBLoadDAG
 from utils.common.file_loader import read_csv
 from airflow.decorators import dag, task
 import pandas as pd
 import logging
 from utils.common.metadata_manager import get_latest_folder
-from dags.notification_handler import send_success_notification, send_failure_notification
+from services.notification_handler import send_success_notification, send_failure_notification
 import json
 from utils.common.file_loader import read_csv
 import os
+from datetime import datetime
 
-class WayfairDBLoaderProductSkus(BaseWayfairDBLoad):
+class WayfairDBLoaderProductSkus(BaseDBLoadDAG):
     def __init__(self):
         super().__init__('wayfair.product_skus')
 
@@ -144,56 +145,88 @@ class WayfairDBLoaderProductSkus(BaseWayfairDBLoad):
         import dags.wayfair.common_etl as etl
         import csv
         from utils.common.sharepoint.sharepoint_manager import ExcelOnlineLoader
-        excel_online_loader = ExcelOnlineLoader()
-        site_id = 'atlasintl.sharepoint.com,ca126560-d5a9-4ea1-ace9-4361095e806f,1704d547-3d85-4235-9d34-ab57ec9572c4'
-        drive_name = 'Documents'
-        file_path = 'Web Crawling/Wayfair/Competitors/Competitors Master File.xlsx'
-        sheet_name = 'WF Competitor List'
-        range_address = 'F:G'
-
-        data = excel_online_loader.get_used_range(site_id, drive_name, file_path, sheet_name, range_address)
-        values = data['text']
-        headers = values[0]
-        df =  pd.DataFrame(values[1:], columns=headers)
-        df.rename(columns={'Competitor Relevant Product ID on Platform': 'sku','Competitor Relevant Product Link': 'url'}, inplace=True)
-        df = df.drop_duplicates(subset=['sku'])
-        df = df[['sku', 'url']]
         
-        all_data = df.to_dict(orient='records')
-        results = []
-        root = get_latest_folder(base_dir='data/wayfair')
-        info_path = os.path.join(root, 'product_detail/product_info')
-        for file in os.listdir(info_path) :
-            if file.endswith('.json'):
+        logging.info("Starting process_data for Wayfair product SKUs")
+        
+        try:
+            excel_online_loader = ExcelOnlineLoader()
+            site_id = 'atlasintl.sharepoint.com,ca126560-d5a9-4ea1-ace9-4361095e806f,1704d547-3d85-4235-9d34-ab57ec9572c4'
+            drive_name = 'Documents'
+            file_path = 'Web Crawling/Wayfair/Competitors/Competitors Master File.xlsx'
+            sheet_name = 'WF Competitor List'
+            range_address = 'F:G'
+
+            logging.info("Loading data from SharePoint Excel file")
+            data = excel_online_loader.get_used_range(site_id, drive_name, file_path, sheet_name, range_address)
+            values = data['text']
+            headers = values[0]
+            df = pd.DataFrame(values[1:], columns=headers)
+            df.rename(columns={'Competitor Relevant Product ID on Platform': 'sku','Competitor Relevant Product Link': 'url'}, inplace=True)
+            df = df.drop_duplicates(subset=['sku'])
+            df = df[['sku', 'url']]
+            logging.info(f"Loaded {len(df)} competitor records from SharePoint")
+            
+            all_data = df.to_dict(orient='records')
+            results = []
+            root = get_latest_folder(base_dir='data/wayfair')
+            info_path = os.path.join(root, 'product_detail/product_info')
+            
+            logging.info(f"Processing product info files from: {info_path}")
+            json_files = [f for f in os.listdir(info_path) if f.endswith('.json')]
+            logging.info(f"Found {len(json_files)} JSON files to process")
+            
+            for file in json_files:
                 path = os.path.join(info_path, file)
-                results.append(self.process_info_data(path))
-        final_results = [item for item in results if item['sku'] in [data['sku'] for data in all_data]]
-        df = pd.DataFrame(final_results)
-        os.makedirs(f'{root}/output', exist_ok=True)
-        df.to_csv(f'{root}/output/product_skus.csv', index=False, quoting=csv.QUOTE_ALL)
-        return df
+                result = self.process_info_data(path)
+                if result:  # Only add non-empty results
+                    results.append(result)
+            
+            logging.info(f"Processed {len(results)} product info records")
+            
+            final_results = [item for item in results if item['sku'] in [data['sku'] for data in all_data]]
+            logging.info(f"Filtered to {len(final_results)} matching competitor products")
+    
+            # Convert final_results to DataFrame with all required columns
+            
+            if final_results:
+                result_df = pd.DataFrame(final_results)
+                result_df['ownership'] = 'competitor'
+                logging.info(f"Created DataFrame with columns: {list(result_df.columns)}")
+                return result_df
+            else:
+                logging.warning("No matching results found, returning empty DataFrame")
+                return pd.DataFrame()
+            
+        except Exception as e:
+            logging.error(f"Error in process_data: {e}")
+            raise
                 
-        
-        
-
-    def get_data(self):
-        root = get_latest_folder(base_dir='data/wayfair')
-        df = read_csv(f'{root}/output/product_skus.csv')
-        df['ownership'] = 'competitor'
-        df['from_src'] = 'wayfair'
-        return df
     def load_data(self, df: pd.DataFrame):
-        self.data_loader.iload_to_db('wayfair.product_skus', 'tmp_product_skus', df)
+        logging.info("Starting load_data for Wayfair product SKUs")
+        try:
+            logging.info(f"Loading {len(df)} records to database")
+            self.data_loader.iload_to_db('wayfair.product_skus', 'tmp_product_skus', df)
+            logging.info("Successfully loaded data to database")
+        except Exception as e:
+            logging.error(f"Error in load_data: {e}")
+            raise
 
 @dag(
     dag_id='wayfair.dag_iload_product_skus',
+    tags=["wayfair", "product_skus", 'data warehouse', 'iload'],
     schedule_interval=None,
-    start_date=None,
+    start_date=datetime(2024, 1, 1),
     catchup=False,
     on_failure_callback=send_failure_notification
 )
 def wayfair_dag_iload_product_skus():
-    dag_instance = WayfairDBLoaderProductSkus()
-    return dag_instance.create_dag()
+    logging.info("Creating Wayfair product SKUs DAG instance")
+    try:
+        dag_instance = WayfairDBLoaderProductSkus()
+        logging.info("DAG instance created successfully")
+        return dag_instance.create_dag()
+    except Exception as e:
+        logging.error(f"Error creating DAG instance: {e}")
+        raise
 
-wayfairfair_dag_iload_product_skus_instance = wayfair_dag_iload_product_skus()
+wayfair_dag_iload_product_skus_instance = wayfair_dag_iload_product_skus()

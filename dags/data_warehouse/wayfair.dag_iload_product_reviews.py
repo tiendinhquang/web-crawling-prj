@@ -1,13 +1,13 @@
-from dags.data_warehouse.base_wayfair_db_load import BaseWayfairDBLoad
+from dags.data_warehouse.base_db_load_dag import BaseDBLoadDAG
 from utils.common.db_loader.data_reader import DataReader
 import json
 import os
 import pandas as pd 
 from utils.common.metadata_manager import get_latest_folder
 from airflow.decorators import dag
-from dags.notification_handler import send_failure_notification
+from services.notification_handler import send_failure_notification
 from utils.common.file_loader import read_csv
-class WayfairProductReviewsDBILoad(BaseWayfairDBLoad):
+class WayfairProductReviewsDBILoad(BaseDBLoadDAG):
     def __init__(self):
         super().__init__('wayfair.product_reviews')
         

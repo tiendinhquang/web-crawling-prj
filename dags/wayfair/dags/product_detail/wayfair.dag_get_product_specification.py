@@ -3,7 +3,7 @@ from services.request_client import SourceConfig, WayfairApiType, create_source_
 from utils.common.metadata_manager import get_latest_folder
 
 
-from dags.notification_handler import send_failure_notification
+from services.notification_handler import send_failure_notification
 import json
 import os
 import logging
@@ -22,8 +22,19 @@ class WayfairGetProductInfo(BaseSourceDAG):
                     'sku': sku,
                     'url': PRODUCT_SPECIFICATION.api_url,
                     'method': 'POST',
+                    'payload': {
+                            'sku': sku,
+                        },
+                        'extensions': {
+                            'persistedQuery': {
+                                'version': 1,
+                                'sha256Hash': '731f41b9572fefb3f47cddc6ab143d198903c8475f753210b4fb044c89d912a4',
+                            },
+                        },
+                    }
+
               
-                }
+                
                 for sku in all_items
             ]
         elif mode == 'failed':
@@ -34,6 +45,19 @@ class WayfairGetProductInfo(BaseSourceDAG):
                     'sku': sku,
                     'url': PRODUCT_SPECIFICATION.api_url,
                     'method': 'POST',
+                    'payload': {
+                        'operationName': 'specs',
+                        'variables': {
+                            'sku': sku,
+                        },
+                        'extensions': {
+                            'persistedQuery': {
+                                'version': 1,
+                                'sha256Hash': '731f41b9572fefb3f47cddc6ab143d198903c8475f753210b4fb044c89d912a4',
+                            },
+                        },
+                    }
+
               
                 }
                 for sku in failed_items
@@ -43,20 +67,7 @@ class WayfairGetProductInfo(BaseSourceDAG):
     def build_file_name(self, metadata):
         # Try to get sku from metadata directly first (new approach)
         sku = metadata.get('sku')
-        selected_options = metadata.get('selected_options', [])
-        
-        # Fallback to payload structure if not found directly (backward compatibility)
-        if not sku and 'payload' in metadata:
-            sku = metadata['payload'].get('variables', {}).get('sku')
-            selected_options = metadata.get('payload', {}).get('variables', {}).get('selectedOptions', [])
-        
-        if not sku:
-            raise ValueError("SKU not found in metadata")
-            
-        if selected_options:
-            return f"{sku}_{'_'.join(selected_options)}.json"
-        else:
-            return f"{sku}.json"
+        return f"{sku}.json"
             
             
 
@@ -65,6 +76,7 @@ from airflow.utils.dates import days_ago
 
 @dag(
     dag_id='wayfair.dag_get_product_specification',
+    tags=["wayfair", "product_specification"],
     description='Get Wayfair product specification by SKU',
     schedule_interval=None,
     start_date=days_ago(1),
