@@ -198,6 +198,14 @@ class GGMerchantsCookieService(StandardCookieRefreshService):
             cookies_url='http://172.17.2.54:8000/api/v1/gg-merchants/cookies'
         )
 
+class GGAdsCookieService(StandardCookieRefreshService):
+
+    def __init__(self):
+        super().__init__(
+            cookies_name='gg_ads',
+            cookies_url='http://172.17.2.54:8000/api/v1/gg-ads/cookies'
+        )
+
 # Factory function to create cookie services
 def create_cookie_service(service_type: str) -> CookieRefreshService:
     """
@@ -215,6 +223,7 @@ def create_cookie_service(service_type: str) -> CookieRefreshService:
     service_map = {
         'lowes_vendor': LowesVendorCookieService,
         'walmart_ad': WalmartAdCookieService,
+        'gg_ads': GGAdsCookieService,
     }
     
     if service_type not in service_map:
@@ -238,6 +247,11 @@ def refresh_walmart_ad_cookies() -> bool:
 def refresh_gg_merchants_cookies() -> bool:
     """Refresh cookies for GG Merchants service."""
     service = GGMerchantsCookieService()
+    return service.refresh_cookies_and_update_config()
+
+def refresh_gg_ads_cookies() -> bool:
+    """Refresh cookies for GG Ads service."""
+    service = GGAdsCookieService()
     return service.refresh_cookies_and_update_config()
 
 # if __name__ == "__main__":

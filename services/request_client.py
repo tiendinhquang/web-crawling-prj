@@ -22,7 +22,7 @@ class SourceType(Enum):
     CRITEO = "criteo"
     LOWES = "lowes"
     GG_MERCHANTS = "gg_merchants"
-
+    GG_ADS = "gg_ads"
 
 class WayfairApiType(Enum):
     """Wayfair API types"""
@@ -51,6 +51,8 @@ class LowesApiType(Enum):
     RTM = "rtm"
 class GGMerchantsApiType(Enum):
     SKU_VISIBILITY = "sku_visibility"
+class GGAdsApiType(Enum):
+    AUCTION_INSIGHTS_DAILY_SEARCH = "auction_insights_daily_search"
 @dataclass
 class SourceConfig:
     """configuration for a specific data source"""
@@ -585,7 +587,49 @@ class GGMerchantsClient(BaseSourceClient):
             'timestamp': time.time(),
         }
         return metadata
-
+class GGAdsClient(BaseSourceClient):
+    """GGAds-specific client implementation"""
+    
+    def parse_response(self, response: httpx.Response, **kwargs) -> Any:
+        """Parse Criteo response - accepts both JSON and text data"""
+        try:
+            # First try to parse as JSON
+            return response.json()
+        except Exception as json_error:
+            try:
+                # If JSON parsing fails, try to get text content
+                text_content = response.text
+                if text_content:
+                    # Return text content as a dictionary with a 'text' key
+                    return {'text': text_content, 'content_type': 'text'}
+                else:
+                    # If no text content, raise the original JSON error
+                    raise ValueError(f"Failed to parse JSON: {json_error}")
+            except Exception as text_error:
+                # If both JSON and text parsing fail, raise the original JSON error
+                raise ValueError(f"Failed to parse response as JSON or text: {json_error}")
+    def validate_response(self, response_data: Dict[str, Any], **kwargs) -> bool:
+        """Validate Criteo response - accepts both dict and text responses"""
+        # Accept both dictionary responses and text responses
+        if isinstance(response_data, dict):
+            return True
+        elif isinstance(response_data, str):
+            return True
+        elif isinstance(response_data, dict) and 'text' in response_data:
+            return True
+        return False
+    def build_metadata(self, **kwargs) -> Dict[str, Any]:
+        """Build Criteo-specific metadata"""
+        import time
+        metadata = {
+            'source': 'criteo',
+            'url': kwargs.get('url', None),
+            'proxy': kwargs.get('proxy', None),
+            'payload': kwargs.get('payload', None),
+            'params': kwargs.get('params', None),
+            'timestamp': time.time(),
+        }
+        return metadata
 
 def create_source_client(source_type: SourceType, config: SourceConfig) -> BaseSourceClient:
     """Factory function to create enhanced source-specific client"""
@@ -594,7 +638,8 @@ def create_source_client(source_type: SourceType, config: SourceConfig) -> BaseS
         SourceType.WALMART: WalmartClient,
         SourceType.CRITEO: CriteoClient,
         SourceType.LOWES: LowesClient,
-        SourceType.GG_MERCHANTS: GGMerchantsClient
+        SourceType.GG_MERCHANTS: GGMerchantsClient,
+        SourceType.GG_ADS: GGAdsClient
     }
     
     if source_type not in client_map:

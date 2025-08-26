@@ -68,7 +68,7 @@ class GGMerchantsService:
             semaphore=semaphore,
         )
         id = response['2']['1']
-        logging.info(f"Create report success with id: {id}")
+        logging.info(f"Create report success with id: {id}, date range from {start_date_str} to {end_date_str}")
         return id
 
     async def get_report_status(self,id:str):
@@ -125,6 +125,9 @@ class GGMerchantsService:
     async def save_report_to_s3(self, report_type: str, report_data,base_path:str,s3_key:str, process_date: datetime, bucket_name:str):
         file_name = f"{report_type}_{process_date.strftime('%Y%m%d')}.csv"
         file_path = os.path.join(base_path, file_name)
+        
+        os.makedirs(base_path, exist_ok=True)
+        
         with open(file_path, 'w') as f:
             f.write(report_data)
         self.s3_hook.load_file(

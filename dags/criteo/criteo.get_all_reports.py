@@ -104,7 +104,7 @@ class CriteoSourceDAG(BaseReportsDAG):
     def refresh_credentials(self):
         """Refresh Criteo tokens and update headers"""
         service = self.get_service()
-        service.refresh_token_and_update_headers()
+        asyncio.run(service.refresh_token_and_update_headers())
     
     async def create_report(self, report_config):
         """Create a Criteo report and return the report ID"""

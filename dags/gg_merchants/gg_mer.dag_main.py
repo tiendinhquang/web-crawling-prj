@@ -8,65 +8,12 @@ import logging
 # Define the table codes to process
 DAG_CONFIGS = [
     {
-        'dag_id': 'criteo.dag_sponsored_product_capout_main',
-        'table_name': 'sponsored_product_capout',
-        'table_code': 'lowes.sponsored_product_capout',
-        'schedule': "0 9 * * *",
+        'dag_id': 'gg_merchants.dag_gmc_sku_performance_main',
+        'table_name': 'gmc_sku_performance',
+        'table_code': 'arielbath.gmc_sku_performance',
+        'schedule': "15 8 * * *",
         'cfg': {
-            "reports": ["capout"]
-        }
-    },
-    {
-        'dag_id': 'criteo.dag_search_term_report_main',
-        'table_name': 'search_term_report',
-        'table_code': 'lowes.search_term_report',
-        'schedule': "0 9 * * *",
-        'cfg': {
-            "reports": ["search_term"]
-        }
-    },
-    {
-        'dag_id': 'criteo.dag_placement_report_main',
-        'table_name': 'placement_report',
-        'table_code': 'lowes.placement_report',
-        'schedule': "0 9 * * *",
-        'optional_dags': [
-            {
-                'dag_id': 'criteo.dag_get_bid_multiplier_report',
-                'task_id': 'trigger_optional_bid_multiplier_report',
-                'enabled': True,
-                'description': 'Optional bid multiplier report DAG'
-            }
-        ],
-        'cfg': {
-            "reports": ["placement"]
-        }
-    },
-    {
-        'dag_id': 'criteo.dag_campaigns_report_main',
-        'table_name': 'campaigns_report',
-        'table_code': 'lowes.campaigns_report',
-        'schedule': "0 9 * * *",
-        'cfg': {
-            "reports": ["campaign"]
-        }
-    },
-    {
-        'dag_id': 'criteo.dag_line_items_report_main',
-        'table_name': 'line_items_report',
-        'table_code': 'lowes.line_items_report',
-        'schedule': "0 9 * * *",
-        'cfg': {
-            "reports": ["line_items"]
-        }
-    },
-    {
-        'dag_id': 'criteo.dag_attributed_transaction_report_main',
-        'table_name': 'attributed_transaction_report',
-        'table_code': 'lowes.attributed_transaction_report',
-        'schedule': "0 9 * * *",
-        'cfg': {
-            "reports": ["attributed_transaction"]
+            "reports": ["sku_visibility"]
         }
     }
 ]
@@ -83,11 +30,11 @@ for cfg in DAG_CONFIGS:
         schedule=schedule,
         start_date=days_ago(1),
         catchup=False,
-        tags=["daily", "criteo", "dag main", table_name],
+        tags=["daily", "gg_merchants", "dag main", table_name],
         on_failure_callback=send_failure_notification,
         on_success_callback=send_success_notification,
         sla_miss_callback=send_sla_notification,
-        description=f"Main DAG for Criteo processing table: {cfg['table_code']}",
+        description=f"Main DAG for gg merchants processing table: {cfg['table_code']}",
         default_args={
             'owner': 'data_team',
             'depends_on_past': False,
@@ -134,7 +81,7 @@ for cfg in DAG_CONFIGS:
         # Create TriggerDagRunOperator instances for external DAGs
         get_report_trigger = TriggerDagRunOperator(
             task_id=f'trigger_get_report_{cfg["table_name"]}',
-            trigger_dag_id=f'criteo.get_all_reports',
+            trigger_dag_id=f'gg_merchants.dag_get_all_report',
             conf=cfg['cfg'],
             wait_for_completion=True,
             reset_dag_run=True,
@@ -147,7 +94,7 @@ for cfg in DAG_CONFIGS:
         
         iload_report_trigger = TriggerDagRunOperator(
             task_id=f'trigger_iload_report_{table_name}',
-            trigger_dag_id=f'criteo.dag_iload_{table_name}',
+            trigger_dag_id=f'gg_merchants.dag_iload_{table_name}',
             wait_for_completion=True,
             reset_dag_run=True,
             poke_interval=5,
