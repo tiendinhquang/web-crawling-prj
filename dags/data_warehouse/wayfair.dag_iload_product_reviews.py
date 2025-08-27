@@ -3,7 +3,7 @@ from utils.common.db_loader.data_reader import DataReader
 import json
 import os
 import pandas as pd 
-from utils.common.metadata_manager import get_latest_folder
+
 from airflow.decorators import dag
 from services.notification_handler import send_failure_notification
 from utils.common.file_loader import read_csv

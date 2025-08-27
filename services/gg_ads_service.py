@@ -54,8 +54,8 @@ class GGAdsService:
             'activityContext': 'DownloadMenu.QuickDownload.CSV',
             'requestPriority': 'HIGH_LATENCY_SENSITIVE',
             'activityType': 'USER_NON_BLOCKING',
-            'activityId': '2451650259271362',
-            'uniqueFingerprint': '-5148428733118097000_2451650259271362_1',
+            'activityId': '990627585237302',
+            'uniqueFingerprint': '-5918933209572725000_990627585237302_1',
             'destinationPlace': '/aw/insights/auctioninsights',
         }
         
@@ -63,10 +63,27 @@ class GGAdsService:
         report_configs = {
             'auction_insights_daily_shopping': {
                 '__ar': '{"1":[{"2":{"1":"Auction insights report","2":2,"3":1,"4":true,"5":true,"6":false,"7":[{"1":{"1":{"3":{"1":"641764527"},"5":"TABLE","6":"-25200000","7":"1612280132994","8":"{\\"1\\":[{\\"1\\":\\"1000004\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000033\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000049\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000050\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000052\\",\\"2\\":\\"CONTROL\\"},{\\"1\\":\\"1000053\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000055\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000056\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000063\\",\\"2\\":\\"CONTROL\\"}]}"},"2":{"1":["segmentation_info.day","merchant_display_name","stats.shopping_impression_share","stats.shopping_overlap_rate","stats.shopping_outranking_share"],"4":{"1":{"1":__ST_YEAR__,"2":__ST_MONTH__,"3":__ST_DATE__},"2":{"1":__ED_YEAR__,"2":__ED_MONTH__,"3":__ED_DATE__}},"10":true,"14":false},"3":[{"1":"INVERT_GROUPING_ENTITIES","2":"TRUE"},{"1":"PUSH_CUSTOMER_FILTER_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"PUSH_ID_FILTERS_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"UI_VISIBLE_FIELDS","2":"segmentation_info.day,merchant_display_name,stats.shopping_impression_share,stats.shopping_overlap_rate,stats.shopping_outranking_share"}]},"2":44}],"16":false,"18":"/aw/insights/auctioninsights","20":"641764527","28":true}}],"2":2,"3":true,"10":true,"12":false,"14":1,"16":{"1":"641764527","2":"641764527"},"20":3}'
+            
             },
             'auction_insights_daily_search': {
                 '__ar': '{"1":[{"2":{"1":"Auction insights report","2":2,"3":1,"4":true,"5":true,"6":false,"7":[{"1":{"1":{"3":{"1":"641764527"},"5":"TABLE","6":"-25200000","7":"1612280132994","8":"{\\"1\\":[{\\"1\\":\\"1000004\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000033\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000049\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000050\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000052\\",\\"2\\":\\"CONTROL\\"},{\\"1\\":\\"1000053\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000055\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000056\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000063\\",\\"2\\":\\"CONTROL\\"}]}"},"2":{"1":[segmentation_info.day,"domain","stats.impression_share","stats.average_position_for_auction","stats.overlap_rate","stats.competitor_above_rate","stats.promoted_rate","stats.absolute_top_of_page_rate","stats.outranking_share"],"4":{"1":{"1":__ST_YEAR__,"2":__ST_MONTH__,"3":__ST_DATE__},"2":{"1":__ED_YEAR__,"2":__ED_MONTH__,"3":__ED_DATE__}},"14":false},"3":[{"1":"INVERT_GROUPING_ENTITIES","2":"TRUE"},{"1":"PUSH_CUSTOMER_FILTER_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"PUSH_ID_FILTERS_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"UI_VISIBLE_FIELDS","2":"segmentation_info.day,domain,stats.impression_share,stats.average_position_for_auction,stats.overlap_rate,stats.competitor_above_rate,stats.promoted_rate,stats.absolute_top_of_page_rate,stats.outranking_share"}]},"2":36}],"16":false,"18":"/aw/insights/auctioninsights","20":"641764527","28":true}}],"2":2,"3":true,"10":true,"12":false,"14":1,"16":{"1":"641764527","2":"641764527"},"20":3}'
-            }
+           
+            },
+            'auction_insights_weekly_shopping': {
+                '__ar': '{"1":[{"2":{"1":"Auction insights report","2":2,"3":1,"4":true,"5":true,"6":false,"7":[{"1":{"1":{"3":{"1":"641764527"},"5":"TABLE","6":"-25200000","7":"1612280132994","8":"{\\"1\\":[{\\"1\\":\\"1000004\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000033\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000049\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000050\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000052\\",\\"2\\":\\"CONTROL\\"},{\\"1\\":\\"1000053\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000055\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000056\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000063\\",\\"2\\":\\"CONTROL\\"}]}"},"2":{"1":["segmentation_info.week","merchant_display_name","stats.shopping_impression_share","stats.shopping_overlap_rate","stats.shopping_outranking_share"],"4":{"1":{"1":__ST_YEAR__,"2":__ST_MONTH__,"3":__ST_DATE__},"2":{"1":__ED_YEAR__,"2":__ED_MONTH__,"3":__ED_DATE__}},"10":true,"14":false},"3":[{"1":"INVERT_GROUPING_ENTITIES","2":"TRUE"},{"1":"PUSH_CUSTOMER_FILTER_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"PUSH_ID_FILTERS_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"UI_VISIBLE_FIELDS","2":"segmentation_info.week,merchant_display_name,stats.shopping_impression_share,stats.shopping_overlap_rate,stats.shopping_outranking_share"}]},"2":44}],"16":false,"18":"/aw/insights/auctioninsights","20":"641764527","28":true}}],"2":2,"3":true,"10":true,"12":false,"14":1,"16":{"1":"641764527","2":"641764527"},"20":3}'
+            },
+            'auction_insights_weekly_search': {
+                '__ar': '{"1":[{"2":{"1":"Auction insights report","2":2,"3":1,"4":true,"5":true,"6":false,"7":[{"1":{"1":{"3":{"1":"641764527"},"5":"TABLE","6":"-25200000","7":"1612280132994","8":"{\\"1\\":[{\\"1\\":\\"1000004\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000033\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000049\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000050\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000052\\",\\"2\\":\\"CONTROL\\"},{\\"1\\":\\"1000053\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000055\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000056\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000063\\",\\"2\\":\\"CONTROL\\"}]}"},"2":{"1":["segmentation_info.week","domain","stats.impression_share","stats.average_position_for_auction","stats.overlap_rate","stats.competitor_above_rate","stats.promoted_rate","stats.absolute_top_of_page_rate","stats.outranking_share"],"4":{"1":{"1":__ST_YEAR__,"2":__ST_MONTH__,"3":__ST_DATE__},"2":{"1":__ED_YEAR__,"2":__ED_MONTH__,"3":__ED_DATE__}},"10":true,"14":false},"3":[{"1":"INVERT_GROUPING_ENTITIES","2":"TRUE"},{"1":"PUSH_CUSTOMER_FILTER_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"PUSH_ID_FILTERS_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"UI_VISIBLE_FIELDS","2":"segmentation_info.week,domain,stats.impression_share,stats.average_position_for_auction,stats.overlap_rate,stats.competitor_above_rate,stats.promoted_rate,stats.absolute_top_of_page_rate,stats.outranking_share"}]},"2":36}],"16":false,"18":"/aw/insights/auctioninsights","20":"641764527","28":true}}],"2":2,"3":true,"10":true,"12":false,"14":1,"16":{"1":"641764527","2":"641764527"},"20":3}'
+            },
+
+            'auction_insights_monthly_shopping': {
+               '__ar': '{"1":[{"2":{"1":"Auction insights report","2":2,"3":1,"4":true,"5":true,"6":false,"7":[{"1":{"1":{"3":{"1":"641764527"},"5":"TABLE","6":"-25200000","7":"1612280132994","8":"{\\"1\\":[{\\"1\\":\\"1000004\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000033\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000049\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000050\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000052\\",\\"2\\":\\"CONTROL\\"},{\\"1\\":\\"1000053\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000055\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000056\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000063\\",\\"2\\":\\"CONTROL\\"}]}"},"2":{"1":["segmentation_info.month","merchant_display_name","stats.shopping_impression_share","stats.shopping_overlap_rate","stats.shopping_outranking_share"],"4":{"1":{"1":__ST_YEAR__,"2":__ST_MONTH__,"3":__ST_DATE__},"2":{"1":__ED_YEAR__,"2":__ED_MONTH__,"3":__ED_DATE__}},"10":true,"14":false},"3":[{"1":"INVERT_GROUPING_ENTITIES","2":"TRUE"},{"1":"PUSH_CUSTOMER_FILTER_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"PUSH_ID_FILTERS_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"UI_VISIBLE_FIELDS","2":"segmentation_info.month,merchant_display_name,stats.shopping_impression_share,stats.shopping_overlap_rate,stats.shopping_outranking_share"}]},"2":44}],"16":false,"18":"/aw/insights/auctioninsights","20":"641764527","28":true}}],"2":2,"3":true,"10":true,"12":false,"14":1,"16":{"1":"641764527","2":"641764527"},"20":3}'
+            },
+            'auction_insights_monthly_search': {
+                
+                '__ar': '{"1":[{"2":{"1":"Auction insights report","2":2,"3":1,"4":true,"5":true,"6":false,"7":[{"1":{"1":{"3":{"1":"641764527"},"5":"TABLE","6":"-25200000","7":"1612280132994","8":"{\\"1\\":[{\\"1\\":\\"1000004\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000033\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000049\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000050\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000052\\",\\"2\\":\\"CONTROL\\"},{\\"1\\":\\"1000053\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000055\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000056\\",\\"2\\":\\"TREATMENT\\"},{\\"1\\":\\"1000063\\",\\"2\\":\\"CONTROL\\"}]}"},"2":{"1":["segmentation_info.month","domain","stats.impression_share","stats.average_position_for_auction","stats.overlap_rate","stats.competitor_above_rate","stats.promoted_rate","stats.absolute_top_of_page_rate","stats.outranking_share"],"4":{"1":{"1":__ST_YEAR__,"2":__ST_MONTH__,"3":__ST_DATE__},"2":{"1":__ED_YEAR__,"2":__ED_MONTH__,"3":__ED_DATE__}},"10":true,"14":false},"3":[{"1":"INVERT_GROUPING_ENTITIES","2":"TRUE"},{"1":"PUSH_CUSTOMER_FILTER_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"PUSH_ID_FILTERS_INTO_LABEL_SUBVIEW","2":"TRUE"},{"1":"UI_VISIBLE_FIELDS","2":"segmentation_info.month,domain,stats.impression_share,stats.average_position_for_auction,stats.overlap_rate,stats.competitor_above_rate,stats.promoted_rate,stats.absolute_top_of_page_rate,stats.outranking_share"}]},"2":36}],"16":false,"18":"/aw/insights/auctioninsights","20":"641764527","28":true}}],"2":2,"3":true,"10":true,"12":false,"14":1,"16":{"1":"641764527","2":"641764527"},"20":3}'
+            },
+           
         }
         
         if report_type not in report_configs:
@@ -99,10 +116,11 @@ class GGAdsService:
             'authuser': '2',
             'xt': 'awn',
             'acx-v-bv': 'awn_cm_auto_20250821-0611_RC001',
-            'acx-v-clt': '1756178054653',
-            'rpcTrackingId': 'ReportDownloadService.DownloadReport:2',
-            'f.sid': '-5148428733118097000',
+            'acx-v-clt': '1756264807789',
+            'rpcTrackingId': 'ReportDownloadService.DownloadReport:3',
+            'f.sid': '-5918933209572725000',
         }
+
 
         semaphore = asyncio.Semaphore(1)
         response, metadata = await self.client.make_request_with_retry(
@@ -114,6 +132,8 @@ class GGAdsService:
         )
         
         #{"1":"1055136338"}
+        if '1' not in response:
+            raise Exception(f"Create report failed with response: {response}")
         id = response['1']
         logging.info(f"Create report success with id: {id}")
         return id
@@ -123,9 +143,9 @@ class GGAdsService:
             'authuser': '2',
             'xt': 'awn',
             'acx-v-bv': 'awn_cm_auto_20250821-0611_RC001',
-            'acx-v-clt': '1756178054653',
-            'rpcTrackingId': 'ReportDownloadService.GetState:5',
-            'f.sid': '-5148428733118097000',
+            'acx-v-clt': '1756264807789',
+            'rpcTrackingId': 'ReportDownloadService.DownloadReport:3',
+            'f.sid': '-5918933209572725000',
         }
         ar_template = '{"1":"__ID__","2":{"3":{"1":"641764527"}}}'
         ar_str = ar_template.replace("__ID__", id)
@@ -200,12 +220,13 @@ if __name__ == "__main__":
         start_date = datetime(2025, 8, 22)
         end_date = datetime.now()
         # gg_ads_service.refresh_cookies_and_update_config()
-        report_type = 'auction_insights_daily_search'
+        report_type = 'auction_insights_daily_shopping'
         id = await gg_ads_service.create_report(report_type ,start_date, end_date)
-        # id = '1055233454'
+        # id = '1055340276'
         # response = await gg_ads_service.get_report_status(id)
         # print(response)
-        # response = await gg_ads_service.get_report_data(url)
+        # report_url = 'https://storage.googleapis.com/awn-report-download/download/1055340276/Auction%20insights%20report.csv?GoogleAccessId=816718982741-compute@developer.gserviceaccount.com&Expires=1756264278&response-content-disposition=attachment&Signature=rDutHAtM%2FNl3MnIFoaF7qZm%2FpIfLKVuVk5FajV8k8c3r98L9nlk02Ql8dXxP1t1UVXaHO747cU7CzsmwcIVbEMgTUokhv%2FwX1CwsoVdqd%2BFMCi6DvFBD1YaWsnMhqCz0%2FN7iDcBSBQzq6R2gQzN376if%2BXKyz8SWGhwpJTbl37fumZAJqUKle3fr9YrXkz8PAYUuhj2POXgZUchKCFMCnvmkDfCkyI4j52hie%2Fw37qd6kVvbCwYv%2FaK8ezYpzJ1F4VFDj%2FN1cKDhQzp1c60eClP10yU17%2BUXwePk8AVPmhRLGTerze%2Fv2fCFEC%2FGArsLdCLx5cBH4d1Vb0%2BOCo68Lw%3D%3D'
+        # response = await gg_ads_service.get_report_data(report_url)
         # print(response)
 
     asyncio.run(main())

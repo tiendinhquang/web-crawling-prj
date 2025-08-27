@@ -9,7 +9,7 @@ import asyncio
 import logging
 
 sku_visibility = {
-    'date_range_days': 7,
+    'date_range_days': 30,
     'report_type': 'sku_visibility',
     'base_path': 'data/gg_merchants',
     

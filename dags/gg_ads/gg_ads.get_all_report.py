@@ -21,6 +21,30 @@ auction_insights_daily_search = {
     'base_path': 'data/gg_ads',
 }
 
+auction_insights_weekly_shopping = {
+    'date_range_days': 30,
+    'report_type': 'auction_insights_weekly_shopping',
+    'base_path': 'data/gg_ads',
+}
+
+auction_insights_weekly_search = {
+    'date_range_days': 30,
+    'report_type': 'auction_insights_weekly_search',
+    'base_path': 'data/gg_ads',
+}
+
+auction_insights_monthly_shopping = {
+    'date_range_days': 30,
+    'report_type': 'auction_insights_monthly_shopping',
+    'base_path': 'data/gg_ads',
+}
+
+auction_insights_monthly_search = {
+    'date_range_days': 30,
+    'report_type': 'auction_insights_monthly_search',
+    'base_path': 'data/gg_ads',
+}
+
 download_config = {
     'auction_insights_daily_shopping': {
         'prefix': 'auction_insights_daily_shopping',
@@ -33,7 +57,31 @@ download_config = {
         'base_path': 'data/gg_ads/auction_insights_daily_search',
         'bucket_name': 'atlasusa-ap-southeast-1-bi-auto-bucket',
         "bucket_path": "prod/crawler/bronze/gg_ads/auction_insights_daily_search/",
-    }
+    },
+    'auction_insights_weekly_shopping': {
+        'prefix': 'auction_insights_weekly_shopping',
+        'base_path': 'data/gg_ads/auction_insights_weekly_shopping',
+        'bucket_name': 'atlasusa-ap-southeast-1-bi-auto-bucket',
+        "bucket_path": "prod/crawler/bronze/gg_ads/auction_insights_weekly_shopping/",
+    },
+    'auction_insights_weekly_search': {
+        'prefix': 'auction_insights_weekly_search',
+        'base_path': 'data/gg_ads/auction_insights_weekly_search',
+        'bucket_name': 'atlasusa-ap-southeast-1-bi-auto-bucket',
+        "bucket_path": "prod/crawler/bronze/gg_ads/auction_insights_weekly_search/",
+    },
+    'auction_insights_monthly_shopping': {
+        'prefix': 'auction_insights_monthly_shopping',
+        'base_path': 'data/gg_ads/auction_insights_monthly_shopping',
+        'bucket_name': 'atlasusa-ap-southeast-1-bi-auto-bucket',
+        "bucket_path": "prod/crawler/bronze/gg_ads/auction_insights_monthly_shopping/",
+    },
+    'auction_insights_monthly_search': {
+        'prefix': 'auction_insights_monthly_search',
+        'base_path': 'data/gg_ads/auction_insights_monthly_search',
+        'bucket_name': 'atlasusa-ap-southeast-1-bi-auto-bucket',
+        "bucket_path": "prod/crawler/bronze/gg_ads/auction_insights_monthly_search/",
+    },
 }
 
 class GGAdsSourceDAG(BaseReportsDAG):
@@ -53,7 +101,32 @@ class GGAdsSourceDAG(BaseReportsDAG):
     
     def get_report_configs(self, context=None):
         """Return the list of Google Ads report configurations"""
-        return [auction_insights_daily_shopping, auction_insights_daily_search]
+        dag_run = context.get("dag_run") if context else None
+        dag_run_conf = dag_run.conf if dag_run else {}
+        if dag_run_conf and isinstance(dag_run_conf, dict) and 'reports' in dag_run_conf:
+            reports = dag_run_conf['reports']
+            if isinstance(reports, list):
+                selected_configs = []
+                for report_type in reports:
+                    if report_type == 'auction_insights_daily_shopping':
+                        selected_configs.append(auction_insights_daily_shopping)
+                    elif report_type == 'auction_insights_daily_search':
+                        selected_configs.append(auction_insights_daily_search)
+                    elif report_type == 'auction_insights_weekly_shopping':
+                        selected_configs.append(auction_insights_weekly_shopping)
+                    elif report_type == 'auction_insights_weekly_search':
+                        selected_configs.append(auction_insights_weekly_search)
+                    elif report_type == 'auction_insights_monthly_shopping':
+                        selected_configs.append(auction_insights_monthly_shopping)
+                    elif report_type == 'auction_insights_monthly_search':
+                        selected_configs.append(auction_insights_monthly_search)
+                return selected_configs
+            else:
+                logging.warning(f"Invalid reports configuration: {reports}")
+                raise ValueError(f"Invalid reports configuration: {reports}")
+                
+        
+        return 
     
     def refresh_credentials(self):
         """Refresh Google Ads cookies and update config"""
@@ -64,7 +137,8 @@ class GGAdsSourceDAG(BaseReportsDAG):
         """Create a Google Ads report and return the response"""
         service = self.get_service()
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=report_config['date_range_days'])
+        # start_date = end_date - timedelta(days=report_config['date_range_days'])
+        start_date = datetime(2025, 1, 1)
         
         return await service.create_report(
             report_type=report_config['report_type'],

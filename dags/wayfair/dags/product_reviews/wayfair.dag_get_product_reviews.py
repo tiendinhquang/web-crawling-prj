@@ -4,11 +4,10 @@ from typing import Dict, Any
 from config.wayfair_dag_configs import  PRODUCT_REVIEWS
 from airflow.decorators import dag
 from typing import List
-import dags.wayfair.common_etl as etl
 from dags.wayfair.common_etl import get_latest_folder
 from services.notification_handler import send_failure_notification
 from datetime import datetime
-
+from services.wayfair_service import WayfairService
 
 class WayfairProductReviewsDAG(BaseReviewsDAG):
     """DAG for extracting Wayfair product reviews using integrated request client"""
@@ -23,17 +22,19 @@ class WayfairProductReviewsDAG(BaseReviewsDAG):
         # Initialize the base class
         super().__init__(source_config, source_client)
         
+        
         # Create DAG tasks
         self.create_dag_tasks()
+        self.path = f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_reviews'
    
     def get_items_to_process(self, mode: str = 'all') -> List[Dict[str, Any]]:
         """Get product variations based on mode"""
         if mode == 'all':
             pass
         elif mode == 'failed':
-            all_variations = etl.get_product_variations(has_variations=False)
-            success_variations = etl.get_success_product_variations('data/wayfair/2025/8/19/product_reviews',has_variations=False)
-            failed_variations = etl.get_failed_product_variations(all_variations, success_variations, has_variations=False)
+            all_variations = WayfairService().get_product_variations(self.path, has_variations=False)
+            success_variations = WayfairService().get_success_product_variations(self.path, has_variations=False)
+            failed_variations = WayfairService().get_failed_product_variations(all_variations, success_variations, has_variations=False)
             return [{'sku': item,
                      'reviews_per_page': 5000, 
                      'review_pages_total': None,

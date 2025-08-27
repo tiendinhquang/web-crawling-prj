@@ -1,6 +1,6 @@
 from dags.common.base_source_dag import BaseSourceDAG
 from services.request_client import SourceConfig, create_source_client, SourceType
-from utils.common.metadata_manager import get_latest_folder
+
 from services.lowes_vendor_service import LowesVendorService
 from services.notification_handler import send_failure_notification
 import json

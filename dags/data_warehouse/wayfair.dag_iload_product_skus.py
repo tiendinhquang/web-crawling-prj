@@ -3,7 +3,7 @@ from utils.common.file_loader import read_csv
 from airflow.decorators import dag, task
 import pandas as pd
 import logging
-from utils.common.metadata_manager import get_latest_folder
+
 from services.notification_handler import send_success_notification, send_failure_notification
 import json
 from utils.common.file_loader import read_csv
@@ -142,7 +142,6 @@ class WayfairDBLoaderProductSkus(BaseDBLoadDAG):
 
     def process_data(self):
         import os
-        import dags.wayfair.common_etl as etl
         import csv
         from utils.common.sharepoint.sharepoint_manager import ExcelOnlineLoader
         
