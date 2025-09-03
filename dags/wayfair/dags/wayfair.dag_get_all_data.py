@@ -85,7 +85,7 @@ class WayfairGetProductDimensions(BaseSourceDAG):
 
     def get_items_to_process(self, mode):
         path = self.path
-        all_items = WayfairService().get_product_variations(self.path, has_variations=False)
+        all_items = WayfairService().get_product_variations(f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_detail_page', has_variations=False)
         
         if mode == 'all':
             return [
@@ -143,11 +143,12 @@ class WayfairGetProductInfo(BaseSourceDAG):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.path = f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_info'
+        os.makedirs(self.path, exist_ok=True)
 
 
     def get_items_to_process(self, mode):
         path = self.path
-        all_items = WayfairService().get_product_variations(self.path)
+        all_items = WayfairService().get_product_variations(f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_detail_page')
         
         if mode == 'all':
             return [
@@ -215,7 +216,7 @@ class WayfairGetProductSpecification(BaseSourceDAG):
 
     def get_items_to_process(self, mode):
         path = self.path
-        all_items = WayfairService().get_product_variations(self.path, has_variations=False)
+        all_items = WayfairService().get_product_variations(f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_detail_page', has_variations=False)
         
         if mode == 'all':
             return [

@@ -100,7 +100,7 @@ class BaseReportsDAG(ABC):
             
             return results
         
-        @task
+        @task(execution_timeout=timedelta(minutes=30))
         def monitor_and_save_reports_task(reports_data: List[Dict[str, Any]]):
             """Monitor report status and save when ready"""
             async def process_single_report(report_data: Dict[str, Any]):
@@ -179,14 +179,23 @@ class BaseReportsDAG(ABC):
                 # Log summary
                 completed = sum(1 for r in final_results if r.get('status') == 'COMPLETED')
                 failed = sum(1 for r in final_results if r.get('status') in ['CREATION_FAILED', 'SAVE_FAILED', 'TASK_FAILED', 'TIMEOUT'])
+                total_reports = len(final_results)
                 
-                logging.info(f"Report processing completed. Success: {completed}, Failed: {failed}")
+                logging.info(f"Report processing completed. Success: {completed}, Failed: {failed}, Total: {total_reports}")
+                
+                # Check failure threshold - fail if failed reports >= max_reports/2
+                max_failures = (total_reports + 1) // 2  
+                if failed >= max_failures:
+                    error_msg = f"❌ Too many report failures: {failed}/{total_reports} (threshold: {max_failures})"
+                    logging.error(error_msg)
+                    raise Exception(error_msg)
                 
                 return final_results
                 
             except Exception as e:
                 logging.error(f"Failed to process reports: {e}")
-                return reports_data
+                # Re-raise the exception to ensure Airflow marks the task as failed
+                raise e
         
         # Return the task functions
         return refresh_credentials_task, create_all_reports_task, monitor_and_save_reports_task

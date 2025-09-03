@@ -18,11 +18,14 @@ TOKEN = credentials['token']
 class GGAdsService:
     def __init__(self):
         self.client = create_source_client(SourceType.GG_ADS, GG_ADS_CONFIG)
-        self.cookies_url = 'http://172.17.2.54:8000/api/v1/lowes/cookies'
+        self.crawler_bearer_token = TOKEN
+        self.cookies_url = 'http://172.17.2.54:8000/api/v1/gg-ads/cookies'
+        self.params_url = 'http://172.17.2.54:8000/api/v1/gg-ads/params'
         self.create_report_url = 'https://ads.google.com/aw_reporting/dashboard/_/rpc/ReportDownloadService/DownloadReport'
         self.get_report_status_url = 'https://ads.google.com/aw_reporting/dashboard/_/rpc/ReportDownloadService/GetState'
         self.cookies_name = 'gg_ads'
         self.s3_hook = S3Hook()
+
 
     def refresh_cookies_and_update_config(self) -> bool:
         """Main method to refresh cookies and update configuration using centralized service"""
@@ -107,18 +110,29 @@ class GGAdsService:
             base_payload['__ar'] = ar_with_dates
         
         return base_payload
-
-    async def create_report(self, report_type:str, start_date:datetime, end_date:datetime):
+    async def get_refresh_params(self):
+        semaphore = asyncio.Semaphore(1)
+        response, metadata = await self.client.make_request_with_retry(
+            self.params_url,
+            method='GET',
+            semaphore=semaphore,
+            headers=  {
+                'Authorization': f'Bearer {self.crawler_bearer_token}'
+            }
+        )
+        return response['params']
+    
+    async def create_report(self, report_type:str ,start_date:datetime, end_date:datetime):
         # Build the request payload using the new method
         data = self._build_request_payload(report_type, start_date, end_date)
-        
+        refresh_params = await self.get_refresh_params()
         params = {
             'authuser': '2',
             'xt': 'awn',
-            'acx-v-bv': 'awn_cm_auto_20250821-0611_RC001',
-            'acx-v-clt': '1756264807789',
+            'acx-v-bv': refresh_params['acx-v-bv'],
+            'acx-v-clt': refresh_params['acx-v-clt'],
             'rpcTrackingId': 'ReportDownloadService.DownloadReport:3',
-            'f.sid': '-5918933209572725000',
+            'f.sid': refresh_params['f.sid'],
         }
 
 
@@ -139,13 +153,14 @@ class GGAdsService:
         return id
 
     async def get_report_status(self,id:str):
+        refresh_params = await self.get_refresh_params()
         params = {
             'authuser': '2',
             'xt': 'awn',
-            'acx-v-bv': 'awn_cm_auto_20250821-0611_RC001',
-            'acx-v-clt': '1756264807789',
-            'rpcTrackingId': 'ReportDownloadService.DownloadReport:3',
-            'f.sid': '-5918933209572725000',
+            'acx-v-bv': refresh_params['acx-v-bv'],
+            'acx-v-clt': refresh_params['acx-v-clt'],
+            'rpcTrackingId': 'ReportDownloadService.GetState:5',
+            'f.sid': refresh_params['f.sid'],
         }
         ar_template = '{"1":"__ID__","2":{"3":{"1":"641764527"}}}'
         ar_str = ar_template.replace("__ID__", id)
@@ -220,14 +235,15 @@ if __name__ == "__main__":
         start_date = datetime(2025, 8, 22)
         end_date = datetime.now()
         # gg_ads_service.refresh_cookies_and_update_config()
-        report_type = 'auction_insights_daily_shopping'
-        id = await gg_ads_service.create_report(report_type ,start_date, end_date)
+        # report_type = 'auction_insights_daily_shopping'
+        # id = await gg_ads_service.create_report(report_type ,start_date, end_date)
         # id = '1055340276'
         # response = await gg_ads_service.get_report_status(id)
         # print(response)
         # report_url = 'https://storage.googleapis.com/awn-report-download/download/1055340276/Auction%20insights%20report.csv?GoogleAccessId=816718982741-compute@developer.gserviceaccount.com&Expires=1756264278&response-content-disposition=attachment&Signature=rDutHAtM%2FNl3MnIFoaF7qZm%2FpIfLKVuVk5FajV8k8c3r98L9nlk02Ql8dXxP1t1UVXaHO747cU7CzsmwcIVbEMgTUokhv%2FwX1CwsoVdqd%2BFMCi6DvFBD1YaWsnMhqCz0%2FN7iDcBSBQzq6R2gQzN376if%2BXKyz8SWGhwpJTbl37fumZAJqUKle3fr9YrXkz8PAYUuhj2POXgZUchKCFMCnvmkDfCkyI4j52hie%2Fw37qd6kVvbCwYv%2FaK8ezYpzJ1F4VFDj%2FN1cKDhQzp1c60eClP10yU17%2BUXwePk8AVPmhRLGTerze%2Fv2fCFEC%2FGArsLdCLx5cBH4d1Vb0%2BOCo68Lw%3D%3D'
         # response = await gg_ads_service.get_report_data(report_url)
         # print(response)
-
+        refresh_params = await gg_ads_service.get_refresh_params()
+        print(refresh_params)
     asyncio.run(main())
     

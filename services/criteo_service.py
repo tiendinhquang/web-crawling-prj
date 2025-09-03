@@ -272,8 +272,8 @@ class CriteoService:
             return success
             
         except Exception as e:
-            logging.error(f"Error in token refresh process: {e}")
-            return False 
+            raise e('Error in token refresh process')
+            
 
     async def create_report_by_date_range(self,report_type, start_date= None, end_date= None,dimensions= None, metrics= None, campaign_ids=None):
         start_date_str = start_date.strftime("%Y-%m-%d")
@@ -433,6 +433,10 @@ if __name__ == "__main__":
     criteo_service = CriteoService()
     # campaign_ids = criteo_service.get_campaign_ids()
     # asyncio.run(criteo_service.refresh_token_and_update_headers())
-    # asyncio.run(criteo_service.create_report_by_date_range(report_type='attributed_transaction', start_date=datetime.now() - timedelta(days=14), end_date=datetime.now(), campaign_ids=campaign_ids))
-    
-    print(asyncio.run(criteo_service.get_page_types(start_date=datetime.now(), end_date=datetime.now())))
+
+    dimensions = "campaign_name,date,campaign_id"
+    metrics = "impressions,clicks,ctr,win_rate,total_spend,cpc,unique_visitors,frequency,assisted_units,assisted_sales,attributed_units,attributed_sales,roas,discarded_product_clicks,new_to_global_brand_attributed_sales"
+
+    asyncio.run(criteo_service.create_report_by_date_range(report_type='campaign', start_date=datetime.now() - timedelta(days=14), end_date=datetime.now(), dimensions=dimensions, metrics=metrics))
+    line_item_ids = criteo_service.get_line_item_ids()
+    print(asyncio.run(criteo_service.get_processed_line_item_ids(line_item_ids=line_item_ids, process_date=datetime.now(), base_path='bid_multiplier')))

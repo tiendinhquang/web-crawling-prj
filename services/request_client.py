@@ -4,7 +4,7 @@ import httpx
 import asyncio
 import logging
 import random
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple, List, Callable
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum

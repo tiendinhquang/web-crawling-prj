@@ -89,10 +89,8 @@ for cfg in DAG_CONFIGS:
         sla_miss_callback=send_sla_notification,
         description=f"Main DAG for Criteo processing table: {cfg['table_code']}",
         default_args={
-            'owner': 'data_team',
             'depends_on_past': False,
-            'email_on_failure': False,
-            'email_on_retry': False,
+
             'retries': 3,
             'retry_delay': timedelta(minutes=5),
         }

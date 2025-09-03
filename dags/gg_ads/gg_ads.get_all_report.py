@@ -132,13 +132,16 @@ class GGAdsSourceDAG(BaseReportsDAG):
         """Refresh Google Ads cookies and update config"""
         service = self.get_service()
         service.refresh_cookies_and_update_config()
+        
+        #
     
     async def create_report(self, report_config):
         """Create a Google Ads report and return the response"""
         service = self.get_service()
         end_date = datetime.now()
-        # start_date = end_date - timedelta(days=report_config['date_range_days'])
-        start_date = datetime(2025, 1, 1)
+        start_date = end_date - timedelta(days=report_config['date_range_days'])
+        logging.info(f"Creating report for {report_config['report_type']} from {start_date} to {end_date}")
+        # start_date = datetime(2025, 1, 1)
         
         return await service.create_report(
             report_type=report_config['report_type'],

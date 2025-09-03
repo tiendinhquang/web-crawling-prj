@@ -67,7 +67,7 @@ class GGMerchantsSourceDAG(BaseReportsDAG):
         service = self.get_service()
         end_date = datetime.now()
         start_date = end_date - timedelta(days=report_config['date_range_days'])
-        # start_date = datetime(2024, 1, 1)
+        # start_date = datetime(2025, 1, 1)
         
         return await service.create_sku_visibility_report(
             start_date=start_date,

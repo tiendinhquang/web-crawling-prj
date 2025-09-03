@@ -36,10 +36,7 @@ for cfg in DAG_CONFIGS:
         sla_miss_callback=send_sla_notification,
         description=f"Main DAG for gg merchants processing table: {cfg['table_code']}",
         default_args={
-            'owner': 'data_team',
             'depends_on_past': False,
-            'email_on_failure': False,
-            'email_on_retry': False,
             'retries': 3,
             'retry_delay': timedelta(minutes=5),
         }
@@ -98,8 +95,8 @@ for cfg in DAG_CONFIGS:
             wait_for_completion=True,
             reset_dag_run=True,
             poke_interval=5,
-            retries=3,
-            retry_delay=timedelta(minutes=30),
+            # retries=3,
+            # retry_delay=timedelta(minutes=30),
         )
         
         # Create optional DAG triggers FIRST

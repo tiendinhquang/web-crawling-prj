@@ -24,8 +24,10 @@ class DataProcessor:
     def process_sku_visibility_data(self, process_date):
         business_date = process_date.strftime('%Y%m%d')
         file_name = f'data/gg_merchants/sku_visibility/{self.table_config["filename"]}_{business_date}.csv'
+        # file_name = 'data/gg_merchants/sku_visibility/sku_visibility_20250826_historical.csv'
         df = pd.read_csv(file_name, skiprows=2)
-        df = df.dropna(subset=["Product ID"])
+        df = df.dropna(subset=["Product ID", "Product title"])
+
         return df
                     
 class CriteoDBLoader(BaseDBLoadDAG):

@@ -11,7 +11,7 @@ DAG_CONFIGS = [
         'dag_id': 'gg_ads.dag_auction_insights_daily_search_main',
         'table_name': 'auction_insights_daily_search',
         'table_code': 'ggads.auction_insights_daily_search',
-        'schedule': None,
+        'schedule': "0 9 * * *",
         'cfg': {
             "reports": ["auction_insights_daily_search"]
         }
@@ -20,7 +20,7 @@ DAG_CONFIGS = [
         'dag_id': 'gg_ads.dag_auction_insights_daily_shopping_main',
         'table_name': 'auction_insights_daily_shopping',
         'table_code': 'ggads.auction_insights_daily_shopping',
-        'schedule': None,
+        'schedule': "0 9 * * *",
         'cfg': {
             "reports": ["auction_insights_daily_shopping"]
         }
@@ -29,7 +29,7 @@ DAG_CONFIGS = [
         'dag_id': 'gg_ads.dag_auction_insights_monthly_search_main',
         'table_name': 'auction_insights_monthly_search',
         'table_code': 'ggads.auction_insights_monthly_search',
-        'schedule': None,
+        'schedule': "0 3 * * *",
         'cfg': {
             "reports": ["auction_insights_monthly_search"]
         }
@@ -38,7 +38,7 @@ DAG_CONFIGS = [
         'dag_id': 'gg_ads.dag_auction_insights_monthly_shopping_main',
         'table_name': 'auction_insights_monthly_shopping',
         'table_code': 'ggads.auction_insights_monthly_shopping',
-        'schedule': None,
+        'schedule': "0 3 * * *",
         'cfg': {
             "reports": ["auction_insights_monthly_shopping"]
         }
@@ -47,7 +47,7 @@ DAG_CONFIGS = [
         'dag_id': 'gg_ads.dag_auction_insights_weekly_search_main',
         'table_name': 'auction_insights_weekly_search',
         'table_code': 'ggads.auction_insights_weekly_search',
-        'schedule': None,
+        'schedule': "0 3 * * *",
         'cfg': {
             "reports": ["auction_insights_weekly_search"]
         }
@@ -56,7 +56,7 @@ DAG_CONFIGS = [
         'dag_id': 'gg_ads.dag_auction_insights_weekly_shopping_main',
         'table_name': 'auction_insights_weekly_shopping',
         'table_code': 'ggads.auction_insights_weekly_shopping',
-        'schedule': None,
+        'schedule': "0 3 * * *",
         'cfg': {
             "reports": ["auction_insights_weekly_shopping"]
         }
@@ -75,16 +75,14 @@ for cfg in DAG_CONFIGS:
         schedule=schedule,
         start_date=days_ago(1),
         catchup=False,
-        tags=["daily", "gg_merchants", "dag main", table_name],
+        tags=["daily", "gg_ads", "dag main", table_name],
         on_failure_callback=send_failure_notification,
         on_success_callback=send_success_notification,
         sla_miss_callback=send_sla_notification,
         description=f"Main DAG for gg merchants processing table: {cfg['table_code']}",
         default_args={
-            'owner': 'data_team',
             'depends_on_past': False,
-            'email_on_failure': False,
-            'email_on_retry': False,
+
             'retries': 3,
             'retry_delay': timedelta(minutes=5),
         }

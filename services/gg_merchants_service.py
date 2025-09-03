@@ -18,7 +18,8 @@ TOKEN = credentials['token']
 class GGMerchantsService:
     def __init__(self):
         self.client = create_source_client(SourceType.GG_MERCHANTS, GG_MERCHANTS_CONFIG)
-        self.cookies_url = 'http://172.17.2.54:8000/api/v1/lowes/cookies'
+        self.cookies_url = 'http://172.17.2.54:8000/api/v1/gg-merchants/cookies'
+        self.params_url = 'http://172.17.2.54:8000/api/v1/gg-merchants/params'
         self.create_report_url = 'https://merchants.google.com/mc_reporting/_/rpc/DownloadService/Download'
         self.get_report_url = 'https://merchants.google.com/mc/download'
         self.cookies_name = 'gg_merchants'
@@ -27,28 +28,21 @@ class GGMerchantsService:
     def refresh_cookies_and_update_config(self) -> bool:
         """Main method to refresh cookies and update configuration using centralized service"""
         return refresh_gg_merchants_cookies()
-
+    async def get_params(self):
+        headers = {
+            'Authorization': f'Bearer {TOKEN}'
+        }
+        response = requests.get(self.params_url, headers=headers)
+        return response.json()['params']
     async def create_sku_visibility_report(self,start_date:datetime,end_date:datetime):
         start_date_str = start_date.strftime('%Y-%m-%d')
         end_date_str = end_date.strftime('%Y-%m-%d')
-        params = {
-            'authuser': '0',
-            'rpcTrackingId': 'DownloadService.Download:1',
-            'f.sid': '2539345447909936600',
-        }
+        params = await self.get_params()
+
         data = {
             'a': '325260250',
-            'f.sid': '2539345447909936600',
-            '__ar': """{
-                "2":{"1":{"1":{"1":"7807751419","2":"SKU Visibility Report",
-                "3":{"1":[{"1":["Date.day","SegmentRawMerchantOfferId.raw_merchant_offer_id","SegmentTitle.title"],
-                "2":[{"1":{"2":"anonymized_all_impressions"},"2":true}],
-                "3":"0","4":"200"},
-                {"1":["anonymized_all_impressions","all_clicks","anonymized_all_events_ctr","conversions","conversion_rate"]}],
-                "4":{"1":28,"2":{"1":"__START_DATE__","2":"__END_DATE__"}},"9":{"1":1}},
-                "4":{"3":[{"1":2}]},"5":{"1":"1751605377627","2":"1756091003537"}},"3":{"4":{"1":2}}}},
-                "3":{"1":"1756092999","2":812000000},"4":4,
-                "5":{"2":"SKU Visibility Report___TIMESTAMP__"}}"""
+            'f.sid': params['f.sid'],
+            '__ar': '{"2":{"1":{"1":{"1":"7807751419","2":"SKU Visibility Report","3":{"1":[{"1":["Date.day","SegmentRawMerchantOfferId.raw_merchant_offer_id","SegmentTitle.title"],"2":[{"1":{"2":"anonymized_all_impressions"},"2":true}],"3":"0","4":"500"},{"1":["anonymized_all_impressions","all_clicks","anonymized_all_events_ctr","conversions","conversion_rate"]}],"4":{"1":28,"2":{"1":"__START_DATE__","2":"__END_DATE__"}},"9":{"1":1}},"4":{"3":[{"1":2}]},"5":{"1":"1751605377627","2":"1756721600891"}},"3":{"4":{"1":2}}}},"3":{"1":"1756722307","2":569000000},"4":4,"5":{"2":"SKU Visibility Report_2025-09-01_03:25:07"}}',
         }
 
         # thay thế trực tiếp
@@ -65,7 +59,7 @@ class GGMerchantsService:
             method='POST',
             params=params,
             data=data,
-            semaphore=semaphore,
+            semaphore=semaphore
         )
         id = response['2']['1']
         logging.info(f"Create report success with id: {id}, date range from {start_date_str} to {end_date_str}")
@@ -74,9 +68,10 @@ class GGMerchantsService:
     async def get_report_status(self,id:str):
         params = {
             'authuser': '0',
-            'rpcTrackingId': 'AlertService.List:4',
-            'f.sid': '5044951462939783000',
+            'rpcTrackingId': 'DownloadService.Download:1',
+            'f.sid': '-1242487546587814700',
         }
+
 
         data = {
             'a': '325260250',
@@ -92,6 +87,7 @@ class GGMerchantsService:
             data=data,
             semaphore=semaphore,
             headers=headers,
+       
         )
         
         ids = [str(item["3"]["4"]["1"]["1"]) for item in response["1"]]
@@ -116,6 +112,7 @@ class GGMerchantsService:
             params=params,
             headers=headers,
             semaphore=semaphore,
+
         )
         
         # The response should contain the actual report data
@@ -145,9 +142,9 @@ if __name__ == "__main__":
         gg_merchants_service = GGMerchantsService()
         start_date = datetime(2025, 8, 22)
         end_date = datetime.now()
-        gg_merchants_service.refresh_cookies_and_update_config()
+        # gg_merchants_service.refresh_cookies_and_update_config()
         # id = await gg_merchants_service.create_sku_visibility_report(start_date, end_date)
-        id = '1756110132213511391'
+        id = '1756721603580342766'
         # data = await gg_merchants_service.get_report_data(id)
         # print(data)
         status = await gg_merchants_service.get_report_status(id)
@@ -161,3 +158,6 @@ if __name__ == "__main__":
     # response = requests.post(url,headers=headers,cookies=cookies, json=json_data)
     # print(response.json())
     # print(deductions)
+    
+    
+    

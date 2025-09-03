@@ -113,8 +113,7 @@ class CookieRefreshService(ABC):
             return success
             
         except Exception as e:
-            logging.error(f"Error in cookies refresh process for '{self.cookies_name}': {e}")
-            return False
+            raise e('Error in cookies refresh process')
 
 
 class StandardCookieRefreshService(CookieRefreshService):

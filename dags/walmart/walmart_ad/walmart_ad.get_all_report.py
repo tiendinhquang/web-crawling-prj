@@ -29,6 +29,7 @@ class WalmartAdSourceDAG(BaseReportsDAG):
     def get_report_configs(self, context=None):
         """Return the list of Walmart Ad report configurations"""
         return [search_impression, ad_item, keyword, placement, item_keyword]
+        # return [search_impression]
     
     def refresh_credentials(self):
         """Refresh Walmart Ad cookies and update config"""

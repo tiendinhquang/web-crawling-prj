@@ -17,7 +17,7 @@ class BaseNotificationHandler(ABC):
         task_instance = context['task_instance']
         task_id = task_instance.task_id
         execution_date = task_instance.execution_date
-        log_url = task_instance.log_url
+        log_url = task_instance.log_url.replace('localhost', '172.17.1.205')
         start_date = task_instance.start_date
         end_date = task_instance.end_date
         status = dag_run.state
@@ -113,3 +113,7 @@ def send_failure_notification(context, custom_msg=None):
 def send_sla_notification(context, custom_msg=None):
     noti = TeamsNotificationHandler()
     noti.send_notification(context, custom_msg, status='sla')
+
+
+
+

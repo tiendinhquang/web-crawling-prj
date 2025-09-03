@@ -1,20 +1,82 @@
-from dags.data_warehouse.base_db_load_dag import BaseDBLoadDAG
-from utils.common.file_loader import read_csv
-from airflow.decorators import dag, task
 import pandas as pd
-import logging
-
-from services.notification_handler import send_success_notification, send_failure_notification
-import json
-from utils.common.file_loader import read_csv
+import asyncio
+import sys
 import os
+import json
 from datetime import datetime
+from dags.data_warehouse.base_db_load_dag import BaseDBLoadDAG
+from airflow.decorators import dag
+from services.notification_handler import send_failure_notification
+from datetime import datetime
+import logging
+from zoneinfo import ZoneInfo
 
-class WayfairDBLoaderProductSkus(BaseDBLoadDAG):
-    def __init__(self):
-        super().__init__('wayfair.product_skus')
+table_codes = ['wayfair.product_skus']
 
+class DataProcessor:
+    def __init__(self, table_config: dict):
+        self.table_config = table_config
+    def process_data(self):
+        df = pd.DataFrame()
+        return df
+    def _has_server_error(self, data):
+        """Check if response contains server error"""
+        return (isinstance(data.get('errors'), list) and 
+                any(e.get('message') == 'Internal server error' for e in data['errors']))
 
+    def _get_image_id(self, item):
+        """Extract image ID from item data"""
+        return str(item.get('leadImage', {}).get('id'))
+
+    def _build_image_url(self, img_id):
+        """Build full image URL from image ID"""
+        return f"https://assets.wfcdn.com/im/18357803/resize-h300-w300%5Ecompr-r85/{img_id[:4]}/{img_id}/.jpg"
+
+    def _build_product_url(self, item, variations):
+        """Build product URL with variations"""
+        return f"{item.get('url')}?piid={','.join(variations)}"
+
+    def _get_price(self, item):
+        """Extract current price from pricing data"""
+        prices = item.get('pricing', {}) or {}
+        prices = prices.get('priceBlockElements', [])
+        for price_item in prices:
+            if price_item.get('__typename') == 'SFPricing_CustomerPrice':
+                display = price_item.get('display', {})
+                return display.get('value') or display.get('min', {}).get('value')
+        return None
+
+    def _get_list_price(self, item):
+        """Extract list price from pricing data"""
+        prices = item.get('pricing', {}) or {}
+        prices = prices.get('priceBlockElements', [])
+        for price_item in prices:
+            if price_item.get('__typename') == 'SFPricing_ListPrice':
+                return price_item['display']['value']
+        return None
+
+    def _process_variations(self, item, variations):
+        """Process and validate product variations"""
+        # Get all valid variation IDs
+        option_categories = item.get('options', {}).get('optionCategories', [])
+        all_variations = [str(option.get('id')) 
+                        for category in option_categories 
+                        for option in category.get('options', [])]
+        
+        # Replace invalid variations with defaults
+        for i, var in enumerate(variations):
+            if var not in all_variations:
+                variations[i] = str(item.get('defaultOptions', [])[0])
+        
+        # Build variation name mapping
+        variation_name = {}
+        for category in option_categories:
+            category_name = category.get('categoryName', '').lower()
+            for option in category.get('options', []):
+                if str(option.get('id')) in variations:
+                    variation_name[category_name] = option.get('name')
+                    
+        return variation_name   
     def process_info_data(self, info_path):
         """
         Process info data from Wayfair product API response to extract key product details.
@@ -33,69 +95,12 @@ class WayfairDBLoaderProductSkus(BaseDBLoadDAG):
                 
         Note: The img_url is not the exact url from Wayfair, so it may be incorrect in some cases
         """
-        def _has_server_error(data):
-            """Check if response contains server error"""
-            return (isinstance(data.get('errors'), list) and 
-                    any(e.get('message') == 'Internal server error' for e in data['errors']))
 
-        def _get_image_id(item):
-            """Extract image ID from item data"""
-            return str(item.get('leadImage', {}).get('id'))
-
-        def _build_image_url(img_id):
-            """Build full image URL from image ID"""
-            return f"https://assets.wfcdn.com/im/18357803/resize-h300-w300%5Ecompr-r85/{img_id[:4]}/{img_id}/.jpg"
-
-        def _build_product_url(item, variations):
-            """Build product URL with variations"""
-            return f"{item.get('url')}?piid={','.join(variations)}"
-
-        def _get_price(item):
-            """Extract current price from pricing data"""
-            prices = item.get('pricing', {}) or {}
-            prices = prices.get('priceBlockElements', [])
-            for price_item in prices:
-                if price_item.get('__typename') == 'SFPricing_CustomerPrice':
-                    display = price_item.get('display', {})
-                    return display.get('value') or display.get('min', {}).get('value')
-            return None
-
-        def _get_list_price(item):
-            """Extract list price from pricing data"""
-            prices = item.get('pricing', {}) or {}
-            prices = prices.get('priceBlockElements', [])
-            for price_item in prices:
-                if price_item.get('__typename') == 'SFPricing_ListPrice':
-                    return price_item['display']['value']
-            return None
-
-        def _process_variations(item, variations):
-            """Process and validate product variations"""
-            # Get all valid variation IDs
-            option_categories = item.get('options', {}).get('optionCategories', [])
-            all_variations = [str(option.get('id')) 
-                            for category in option_categories 
-                            for option in category.get('options', [])]
-            
-            # Replace invalid variations with defaults
-            for i, var in enumerate(variations):
-                if var not in all_variations:
-                    variations[i] = str(item.get('defaultOptions', [])[0])
-            
-            # Build variation name mapping
-            variation_name = {}
-            for category in option_categories:
-                category_name = category.get('categoryName', '').lower()
-                for option in category.get('options', []):
-                    if str(option.get('id')) in variations:
-                        variation_name[category_name] = option.get('name')
-                        
-            return variation_name
         # Read and validate input data
         with open(info_path, 'r', encoding='utf-8') as f:
             info_data = json.load(f)
             
-        if _has_server_error(info_data):
+        if self._has_server_error(info_data):
             logging.error(f"Error in {info_path}")
             return {}
 
@@ -117,30 +122,28 @@ class WayfairDBLoaderProductSkus(BaseDBLoadDAG):
             return {}
 
         # Process variations
-        variation_name = _process_variations(matched_item, variations)
+        variation_name = self._process_variations(matched_item, variations)
         
         # Build result dictionary with all product info
         results = {
             "id": id,
             "sku": sku,
-            "url": _build_product_url(matched_item, variations),
-            'img_id': _get_image_id(matched_item),
-            "img_url": _build_image_url(_get_image_id(matched_item)),
+            "url": self._build_product_url(matched_item, variations),
+            'img_id': self._get_image_id(matched_item),
+            "img_url": self._build_image_url(self._get_image_id(matched_item)),
             "variation_name": json.dumps(variation_name),
             "variations": variations,
             "title": matched_item.get('productName'),
             "manufacturer": matched_item.get('manufacturer', {}).get('name'),
-            "price": _get_price(matched_item),
-            "list_price": _get_list_price(matched_item),
+            "price": self._get_price(matched_item),
+            "list_price": self._get_list_price(matched_item),
             "average_rating": matched_item.get('reviews', {}).get('reviewRating'),
             "review_count": matched_item.get('reviews', {}).get('reviewCount'),
             "stock_status": (matched_item.get('inventory') or {}).get('stockStatus')
         }
         
         return results
-    
-
-    def process_data(self):
+    def process_all_info_data(self,process_date):
         import os
         import csv
         from utils.common.sharepoint.sharepoint_manager import ExcelOnlineLoader
@@ -167,8 +170,7 @@ class WayfairDBLoaderProductSkus(BaseDBLoadDAG):
             
             all_data = df.to_dict(orient='records')
             results = []
-            root = get_latest_folder(base_dir='data/wayfair')
-            info_path = os.path.join(root, 'product_detail/product_info')
+            info_path = f'data/wayfair/{process_date.year}/{process_date.month}/{process_date.day}/product_detail/product_info'
             
             logging.info(f"Processing product info files from: {info_path}")
             json_files = [f for f in os.listdir(info_path) if f.endswith('.json')]
@@ -184,7 +186,7 @@ class WayfairDBLoaderProductSkus(BaseDBLoadDAG):
             
             final_results = [item for item in results if item['sku'] in [data['sku'] for data in all_data]]
             logging.info(f"Filtered to {len(final_results)} matching competitor products")
-    
+
             # Convert final_results to DataFrame with all required columns
             
             if final_results:
@@ -199,33 +201,40 @@ class WayfairDBLoaderProductSkus(BaseDBLoadDAG):
         except Exception as e:
             logging.error(f"Error in process_data: {e}")
             raise
-                
+
+
+                    
+class CriteoDBLoader(BaseDBLoadDAG):
+    def __init__(self, table_code: str):
+        super().__init__(table_code)
+    
+        
+    def process_data(self):
+        data_processor = DataProcessor(self.table_config)
+        if self.table_code == 'wayfair.product_skus':
+            df = data_processor.process_all_info_data(datetime.now())
+        
+        return df
+    
     def load_data(self, df: pd.DataFrame):
-        logging.info("Starting load_data for Wayfair product SKUs")
-        try:
-            logging.info(f"Loading {len(df)} records to database")
-            self.data_loader.iload_to_db('wayfair.product_skus', 'tmp_product_skus', df)
-            logging.info("Successfully loaded data to database")
-        except Exception as e:
-            logging.error(f"Error in load_data: {e}")
-            raise
+        logging.info(f"Loading data with shape {df.shape}")
+        self.data_loader.iload_to_db(self.table_code, f'tmp_{self.table_config["des_table"]}', df)
 
-@dag(
-    dag_id='wayfair.dag_iload_product_skus',
-    tags=["wayfair", "product_skus", 'data warehouse', 'iload'],
-    schedule_interval=None,
-    start_date=datetime(2024, 1, 1),
-    catchup=False,
-    on_failure_callback=send_failure_notification
-)
-def wayfair_dag_iload_product_skus():
-    logging.info("Creating Wayfair product SKUs DAG instance")
-    try:
-        dag_instance = WayfairDBLoaderProductSkus()
-        logging.info("DAG instance created successfully")
+
+# Create DAGs for each table code
+def make_wayfair_dag(table_code: str):
+    @dag(
+        dag_id=f'wayfair.dag_iload_{table_code.split(".")[1]}',
+        tags=["wayfair", 'data warehouse', 'iload'],
+        schedule_interval=None,
+        start_date=datetime(2024, 1, 1),
+        catchup=False,
+        on_failure_callback=send_failure_notification
+    )
+    def _dag():
+        dag_instance = CriteoDBLoader(table_code)
         return dag_instance.create_dag()
-    except Exception as e:
-        logging.error(f"Error creating DAG instance: {e}")
-        raise
+    return _dag()
 
-wayfair_dag_iload_product_skus_instance = wayfair_dag_iload_product_skus()
+for code in table_codes:
+    globals()[f'wayfair_dag_{code.replace(".", "_")}'] = make_wayfair_dag(code)
