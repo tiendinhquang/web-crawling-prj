@@ -12,14 +12,14 @@ from typing import Dict, Any, List, Optional, Tuple
 from abc import ABC, abstractmethod
 from airflow.decorators import task, dag
 from airflow.utils.dates import days_ago
-from dags.notification_handler import send_failure_notification
+from services.notification_handler import send_failure_notification
 
 # Import existing utils and error handler
 from utils.common.proxy_manager import get_working_proxies_sync
 from services.error_handler import create_error_handler, UniversalErrorHandler
 
 # Import enhanced components
-from services.request_client import SourceType, SourceConfig, WayfairClient
+from services.request_client import SourceType, SourceConfig, BaseSourceClient
 
 
 class BaseSourceDAG(ABC):
@@ -30,7 +30,7 @@ class BaseSourceDAG(ABC):
     """
     
     def __init__(self, source_config: SourceConfig,
-                 source_client: WayfairClient):
+                 source_client: BaseSourceClient):
         self.source_config = source_config
         self.source_client = source_client
         self.source_type = source_config.source_type
@@ -64,6 +64,7 @@ class BaseSourceDAG(ABC):
         import json
         from datetime import datetime 
         year, month, day = datetime.now().year, datetime.now().month, datetime.now().day
+        # year,month,day = 2025,8,7
         path = f'data/{self.source_config.from_src}/{year}/{month}/{day}/{self.source_config.base_path}'
         try:
 
@@ -182,7 +183,6 @@ class BaseSourceDAG(ABC):
                 
             except Exception as e:
                 # Always log error summary even when processing fails
-
                 error_summary = self.source_client.error_handler.get_error_summary()
                 logging.error(f"📊 Error Summary on failure: {error_summary}")
                 logging.error(f"❌ Processing failed: {e}")
@@ -265,4 +265,5 @@ class BaseSourceDAG(ABC):
 #     source_config=source_config,
 #     dag_class=WayfairProductDAG
 # )
+
 

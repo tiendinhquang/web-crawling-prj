@@ -1,7 +1,7 @@
 from airflow.decorators import dag,task
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from datetime import datetime
-from dags.notification_handler import send_failure_notification, send_success_notification
+from services.notification_handler import send_failure_notification, send_success_notification, send_sla_notification
 from datetime import timedelta
 
 @dag(
@@ -13,6 +13,7 @@ from datetime import timedelta
     on_failure_callback=send_failure_notification,
     on_success_callback=send_success_notification,
     description="Main DAG for Wayfair with branching load type, daily load target skus to table wayfair.product_skus",
+
 )
 
 def wayfair_dag_main():
@@ -24,6 +25,7 @@ def wayfair_dag_main():
         poke_interval=5,
         retries=3,
         retry_delay=timedelta(minutes=30),
+
     )
 
     trigger_iload_product_info = TriggerDagRunOperator(
@@ -33,7 +35,7 @@ def wayfair_dag_main():
         reset_dag_run=True,
         poke_interval=5,
         retries=3,
-        retry_delay=timedelta(minutes=30),
+        retry_delay=timedelta(minutes=30)
     )
 
     trigger_iload_product_skus = TriggerDagRunOperator(
@@ -41,12 +43,10 @@ def wayfair_dag_main():
         trigger_dag_id='wayfair.dag_iload_product_skus',
         wait_for_completion=True,
         reset_dag_run=True,
-        poke_interval=5,
-        retries=3,
-        retry_delay=timedelta(minutes=30),
+        poke_interval=5
+
     )
 
     trigger_iload_product_detail >> trigger_iload_product_info >> trigger_iload_product_skus
 
 dag_instance = wayfair_dag_main()
-

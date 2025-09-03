@@ -7,7 +7,6 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
-from utils.common.metadata_manager import get_latest_folder
 from utils.common.config_manager import get_header_config, get_cookie_config
 from utils.common.proxy_manager import get_working_proxies_sync
 from collections import defaultdict
@@ -16,7 +15,6 @@ import asyncio
 import pandas as pd 
 from datetime import datetime
 import random
-
 from airflow.decorators import task, dag
 from airflow.utils.dates import days_ago
 from airflow.operators.python import get_current_context
@@ -126,7 +124,7 @@ class BaseWayfairProductReviewsAPIDAG(ABC):
             try:
                 now = datetime.now()
                 year, month, day = now.year, now.month, now.day
-                year, month, day = 2025, 7, 8
+                # year, month, day = 2025, 7, 8
 
                 folder_path = f'data/wayfair/{year}/{month}/{day}{self.config["output_data_path"]}{sku}'
                 file_path = f'{folder_path}/{sku}_{page_number}_{reviews_per_page}.json'

@@ -14,8 +14,6 @@ class DBConnection:
         with open(CONFIG_PATH, 'r') as f:
             config = yaml.safe_load(f)
         return config['warehouse']
-
-    @lru_cache()
     def create_db_engine(self):
         username = self.db_config['username']
         password = self.db_config['password']

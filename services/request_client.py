@@ -1,9 +1,10 @@
 
+from calendar import c
 import httpx
 import asyncio
 import logging
 import random
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple, List, Callable
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -18,8 +19,10 @@ class SourceType(Enum):
     """Supported data sources"""
     WAYFAIR = "wayfair"
     WALMART = "walmart"
-    SELLERCLOUD = "sellercloud"
-
+    CRITEO = "criteo"
+    LOWES = "lowes"
+    GG_MERCHANTS = "gg_merchants"
+    GG_ADS = "gg_ads"
 
 class WayfairApiType(Enum):
     """Wayfair API types"""
@@ -33,7 +36,23 @@ class WayfairApiType(Enum):
 class WalmartApiType(Enum):
     """Walmart API types"""
     PRODUCT_LIST = "product_list"
+    AD_REPORT = "ad_report"
 
+class CriteoApiType(Enum):
+    """Criteo API types"""
+    CAPOUT = "capout"
+    SEARCH_TERM = "search_term"
+    PLACEMENT = "placement"
+    BID = "bid"
+    CAMPAIGN = "campaign"
+    LINE_ITEM = "line_item"
+class LowesApiType(Enum):
+    """Lowes API types"""
+    RTM = "rtm"
+class GGMerchantsApiType(Enum):
+    SKU_VISIBILITY = "sku_visibility"
+class GGAdsApiType(Enum):
+    AUCTION_INSIGHTS_DAILY_SEARCH = "auction_insights_daily_search"
 @dataclass
 class SourceConfig:
     """configuration for a specific data source"""
@@ -55,135 +74,8 @@ class SourceConfig:
     num_proxies: int = 30
     base_path: str = ''
     from_src: str = ''
+    reviews_per_page: int = 10000 # Added for WayfairReviewsClient
 
-
-class PayloadBuilder(ABC):
-    """Abstract base class for payload builders"""
-    @abstractmethod
-    def build(self, **kwargs) -> Dict[str, Any]:
-        """Build request payload based on API type and parameters"""
-        pass
-
-
-class WayfairPayloadBuilder(PayloadBuilder):
-    """Wayfair-specific payload builder with different templates for each API type"""
-    
-    def __init__(self, api_type: WayfairApiType):
-        self.api_type = api_type
-    
-    def build(self, **kwargs) -> Dict[str, Any]:
-        """Build payload based on API type"""
-        if self.api_type == WayfairApiType.PRODUCT_INFO:
-            return self._build_product_info_payload(**kwargs)
-        elif self.api_type == WayfairApiType.PRODUCT_DIMENSIONS:
-            return self._build_product_dimensions_payload(**kwargs)
-        elif self.api_type == WayfairApiType.PRODUCT_SPECIFICATION:
-            return self._build_product_specification_payload(**kwargs)
-        elif self.api_type == WayfairApiType.PRODUCT_REVIEWS:
-            return self._build_product_reviews_payload(**kwargs)
-        elif self.api_type == WayfairApiType.PRODUCT_DETAIL:
-            return self._build_product_detail_payload(**kwargs)
-        elif self.api_type == WayfairApiType.PRODUCT_LIST:
-            return self._build_product_list_payload(**kwargs)
-        else:
-            raise ValueError(f"Unsupported Wayfair API type: {self.api_type}")
-    
-    def _build_product_info_payload(self, **kwargs) -> Dict[str, Any]:
-        """Build payload for product info API"""
-        sku = kwargs.get('sku', '')
-        selected_options = kwargs.get('selected_options', [])
-        
-        return {
-            'variables': {
-                'sku': sku,
-                'selectedOptionIds': selected_options,
-                'energyLabelContext': 'PDPCAROUSEL',
-            },
-        }
-    
-    def _build_product_dimensions_payload(self, **kwargs) -> Dict[str, Any]:
-        """Build payload for product dimensions API"""
-        sku = kwargs.get('sku', '')
-        selected_options = kwargs.get('selected_options', [])
-        
-        return {
-            'operationName': 'Queries_Product_WeightsAndDimensions__',
-            'variables': {
-                'sku': sku,
-            },
-            'extensions': {
-                'persistedQuery': {
-                    'version': 1,
-                    'sha256Hash': '8af395606197e405ce5734546f12159b28433db85d5faf0ae1a600afc92631be',
-                },
-            },
-}
-
-    
-    def _build_product_specification_payload(self, **kwargs) -> Dict[str, Any]:
-        """Build payload for product specification API"""
-        sku = kwargs.get('sku', '')
-        
-        return {
-            'operationName': 'specs',
-            'variables': {
-                'sku': sku,
-            },
-            'extensions': {
-                'persistedQuery': {
-                    'version': 1,
-                    'sha256Hash': '731f41b9572fefb3f47cddc6ab143d198903c8475f753210b4fb044c89d912a4',
-                },
-            },
-        }
-    
-    def _build_product_reviews_payload(self, **kwargs) -> Dict[str, Any]:
-        """Build payload for product reviews API"""
-        sku = kwargs.get('sku', '')
-        page_number = kwargs.get('page_number', 1)
-        reviews_per_page = kwargs.get('reviews_per_page', 10)
-        
-        return {
-            'variables': {
-                'sku': sku,
-                'sort_order': 'DATE_DESCENDING',
-                'page_number': page_number,
-                'filter_rating': '',
-                'reviews_per_page': reviews_per_page,
-                'search_query': '',
-                'language_code': 'en',
-            }
-        }
-    
-    def _build_product_detail_payload(self, **kwargs) -> Dict[str, Any]:
-        """Build payload for product detail API"""
-        sku = kwargs.get('sku', '')
-        
-        return {
-            'sku': sku
-        }
-    
-    def _build_product_list_payload(self, **kwargs) -> Dict[str, Any]:
-        """Build payload for product list API"""
-        return None
-
-class WalmartPayloadBuilder(PayloadBuilder):
-    """Walmart-specific payload builder"""
-    def __init__(self, api_type: WalmartApiType):
-        self.api_type = api_type
-    
-    def build(self, **kwargs) -> Dict[str, Any]:
-        """Build payload for Walmart API"""
-        if self.api_type == WalmartApiType.PRODUCT_LIST:
-            return self._build_product_list_payload(**kwargs)
-        else:   
-            raise ValueError(f"Unsupported Walmart API type: {self.api_type}")
-    
-    def _build_product_list_payload(self, **kwargs) -> Dict[str, Any]:
-        """Build payload for product list API"""
-        return None
-
- 
 
 class BaseSourceClient(ABC):
     """
@@ -196,27 +88,8 @@ class BaseSourceClient(ABC):
         self.config = config
         self.source_type = config.source_type
         
-        # Initialize payload builder based on source and API type
-        self.payload_builder = self._create_payload_builder()
-        
         # Use existing error handler with source-specific configuration
         self.error_handler = create_error_handler(source=config.source_type.value)
-    
-    def _create_payload_builder(self) -> PayloadBuilder:
-        """Create appropriate payload builder based on source and API type"""
-        if self.config.source_type == SourceType.WAYFAIR:
-            api_type = WayfairApiType(self.config.api_type) if self.config.api_type else WayfairApiType.PRODUCT_INFO
-            return WayfairPayloadBuilder(api_type)
-        elif self.config.source_type == SourceType.WALMART:
-            api_type = WalmartApiType(self.config.api_type) if self.config.api_type else WalmartApiType.PRODUCT_LIST
-            return WalmartPayloadBuilder(api_type)
-        else:
-            # For other sources, use default implementation
-            raise ValueError(f"Unsupported source type: {self.config.source_type}")
-    
-    def build_request_payload(self, **kwargs) -> Dict[str, Any]:
-        """Build request payload using the appropriate payload builder"""
-        return self.payload_builder.build(**kwargs)
     
     @abstractmethod
     def validate_response(self, response_data: Dict[str, Any], **kwargs) -> bool:
@@ -233,9 +106,7 @@ class BaseSourceClient(ABC):
         """Parse HTTP response into structured data (can be JSON, HTML, text, etc.)"""
         pass
 
-    def get_headers(self) -> Dict[str, str]:
-        """Get headers using existing config manager"""
-        return get_header_config(header_name=self.config.headers_name)
+
     
     def get_cookies(self) -> Dict[str, str]:
         """Get cookies using existing config manager"""
@@ -243,7 +114,7 @@ class BaseSourceClient(ABC):
     
     def get_auth_headers(self) -> Dict[str, str]:
         """Get authentication headers if needed"""
-        headers = self.get_headers()
+        headers = get_header_config(header_name=self.config.headers_name)
         if self.config.auth_token:
             headers['Authorization'] = f'Bearer {self.config.auth_token}'
         return headers
@@ -253,21 +124,37 @@ class BaseSourceClient(ABC):
         url: str, 
         method: str = 'POST',
         payload: Optional[Dict] = None,
+        data: Optional[Dict] = None,
         params: Optional[Dict] = None,
         proxy: Optional[Dict] = None,
+        headers: Optional[Dict] = None,
+        cookies: Optional[Dict] = None,
         **kwargs
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Make a single HTTP request with proper error handling using existing error handler.
         """
-        headers = self.get_auth_headers()
-        cookies = self.get_cookies()
+        if headers is None:
+            headers = self.get_auth_headers()
+        if cookies is None:
+            cookies = self.get_cookies()
         
-        # Add source-specific parameters
+        # Add source-specific parameters (like API hash) to params if provided
         if self.config.api_hash:
             params = params or {}
             params['hash'] = self.config.api_hash
+            
+        request_kwargs = {
+            "headers": headers,
+            **({"params": params} if params else {}),
+            **({"cookies": cookies} if cookies else {}),
+        }
         
+        # Add json payload only for POST requests
+        if method.upper() == 'POST' and payload:
+            request_kwargs["json"] = payload
+        if method.upper() == 'POST' and data:
+            request_kwargs["data"] = data
         async with httpx.AsyncClient(
             proxies=proxy,
             timeout=self.config.timeout_seconds,
@@ -276,17 +163,12 @@ class BaseSourceClient(ABC):
             if method.upper() == 'POST':
                 response = await client.post(
                     url,
-                    headers=headers,
-                    params=params,
-                    cookies=cookies,
-                    json=payload
+                    **request_kwargs
                 )
             else:
                 response = await client.get(
                     url,
-                    headers=headers,
-                    params=params,
-                    cookies=cookies
+                    **request_kwargs
                 )
             
             if not (200 <= response.status_code < 400):
@@ -309,6 +191,7 @@ class BaseSourceClient(ABC):
                 proxy=str(proxy) if proxy else '',
                 payload=payload,  # Keep as dictionary
                 params=str(params) if params else '',
+                response_status_code=response.status_code,
                 **kwargs
             )
             
@@ -319,9 +202,12 @@ class BaseSourceClient(ABC):
         url: str,
         method: str = 'POST',
         payload: Optional[Dict] = None,
+        data: Optional[Dict] = None,
         params: Optional[Dict] = None,
         proxy: Optional[Dict] = None,
         semaphore: Optional[asyncio.Semaphore] = None,
+        headers: Optional[Dict] = None,
+        cookies: Optional[Dict] = None,
         **kwargs
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
@@ -339,8 +225,11 @@ class BaseSourceClient(ABC):
                     url,
                     method,
                     payload,
+                    data,
                     params,
                     proxy,
+                    headers,
+                    cookies,
                     **kwargs
                 )
         else:
@@ -356,6 +245,8 @@ class BaseSourceClient(ABC):
     ) -> list:
         """
         Process a batch of items with rotating proxies using existing proxy manager.
+        Items should contain pre-built payload and/or params from DAG level.
+        DAGs decide whether to use payload (JSON body) or params (URL parameters) based on API requirements.
         """
         if proxies is None:
             proxies = get_working_proxies_sync(limit=self.config.num_proxies)
@@ -375,13 +266,15 @@ class BaseSourceClient(ABC):
             
             proxy = proxies[proxy_idx % len(proxies)] if proxies else None
 
-    
-            payload = self.build_request_payload(**item, **kwargs)
+            # Extract pre-built payload and params from item
+            # DAGs can provide either payload (for POST requests) or params (for GET requests) or both
+            payload = item.get('payload')
+            params = item.get('params')
+            url = item.get('url')
+            method = item.get('method', 'POST')
             
             tasks.append(
                 self.make_request_with_retry(
-      
-                    payload=payload,
                     proxy=proxy,
                     semaphore=semaphore,
                     **item
@@ -389,15 +282,6 @@ class BaseSourceClient(ABC):
             )
         
         return await asyncio.gather(*tasks)
-
-
-class DefaultPayloadBuilder(PayloadBuilder):
-    """Default payload builder for sources without specific API types"""
-    
-    def build(self, **kwargs) -> Dict[str, Any]:
-        """Default payload building logic"""
-        item = kwargs.get('item', {})
-        return item
 
 
 class WayfairClient(BaseSourceClient):
@@ -416,13 +300,14 @@ class WayfairClient(BaseSourceClient):
     
     def build_metadata(self, **kwargs) -> Dict[str, Any]:
         """Build Wayfair-specific metadata"""
+        import time
         metadata = {
             'source': 'wayfair',
             'url': kwargs.get('url', None),
             'proxy': kwargs.get('proxy', None),
             'payload': kwargs.get('payload', None),
             'params': kwargs.get('params', None), 
-            'timestamp': asyncio.get_event_loop().time(),
+            'timestamp': time.time(),
         }
         
         # Add dynamic parameters that might be present in the request
@@ -450,13 +335,14 @@ class WalmartClient(BaseSourceClient):
     
     def build_metadata(self, **kwargs) -> Dict[str, Any]:
         """Extract Walmart-specific metadata"""
+        import time
         metadata = {
             'source': 'walmart',
             'url': kwargs.get('url', None),
             'proxy': kwargs.get('proxy', None),
             'payload': kwargs.get('payload', None),
             'params': kwargs.get('params', None),
-            'timestamp': asyncio.get_event_loop().time()
+            'timestamp': time.time()
         }
         
         # Add dynamic parameters that might be present in the request
@@ -468,49 +354,299 @@ class WalmartClient(BaseSourceClient):
         return metadata
 
 
-class SellerCloudClient(BaseSourceClient):
-    """Enhanced SellerCloud-specific client implementation"""
+class CriteoClient(BaseSourceClient):
+    """Criteo-specific client implementation"""
     
     def parse_response(self, response: httpx.Response, **kwargs) -> Any:
-        """Parse SellerCloud response"""
+        """Parse Criteo response - accepts both JSON and text data"""
+        try:
+            # First try to parse as JSON
+            return response.json()
+        except Exception as json_error:
+            try:
+                # If JSON parsing fails, try to get text content
+                text_content = response.text
+                if text_content:
+                    # Return text content as a dictionary with a 'text' key
+                    return {'text': text_content, 'content_type': 'text'}
+                else:
+                    # If no text content, raise the original JSON error
+                    raise ValueError(f"Failed to parse JSON: {json_error}")
+            except Exception as text_error:
+                # If both JSON and text parsing fail, raise the original JSON error
+                raise ValueError(f"Failed to parse response as JSON or text: {json_error}")
+    
+    def validate_response(self, response_data: Dict[str, Any], **kwargs) -> bool:
+        """Validate Criteo response - accepts both dict and text responses"""
+        # Accept both dictionary responses and text responses
+        if isinstance(response_data, dict):
+            return True
+        elif isinstance(response_data, str):
+            return True
+        elif isinstance(response_data, dict) and 'text' in response_data:
+            return True
+        return False
+    def build_metadata(self, **kwargs) -> Dict[str, Any]:
+        """Build Criteo-specific metadata"""
+        import time
+        metadata = {
+            'source': 'criteo',
+            'url': kwargs.get('url', None),
+            'proxy': kwargs.get('proxy', None),
+            'params': kwargs.get('params', None),
+            'campaign_id': kwargs.get('campaign_id', None),
+            'line_item_id': kwargs.get('line_item_id', None),
+            'period': kwargs.get('period', None),
+            'dates': kwargs.get('dates', None),  
+            'business_date': kwargs.get('business_date', None),
+            'timestamp': time.time(),
+            'response_status_code': kwargs.get('response_status_code', None),
+        }
+        return metadata
+
+
+class LowesClient(BaseSourceClient):
+    """Lowes-specific client implementation"""
+    
+    def parse_response(self, response: httpx.Response, **kwargs) -> Any:
+        """Parse Lowes response"""
         try:
             return response.json()
         except Exception as e:
             raise ValueError(f"Failed to parse JSON: {e}")
     
     def validate_response(self, response_data: Dict[str, Any], **kwargs) -> bool:
-        """Validate SellerCloud response"""
-        return 'product' in response_data or 'inventory' in response_data
-    
+        """Validate Lowes response"""
+        return isinstance(response_data, dict)
     def build_metadata(self, **kwargs) -> Dict[str, Any]:
-        """Extract SellerCloud-specific metadata"""
-        item = kwargs.get('item', {})
-        product_id = item.get('product_id', '')
-        
+        """Build Lowes-specific metadata"""
+        import time
         metadata = {
-            'source': 'sellercloud',
-            'product_id': product_id,
-            'timestamp': asyncio.get_event_loop().time()
+            'source': 'lowes',
+            'url': kwargs.get('url', None),
+            'proxy': kwargs.get('proxy', None),
+            'params': kwargs.get('params', None),
+            'business_date': kwargs.get('business_date', None),
+            'tracking_number': kwargs.get('tracking_number', None),
+            'timestamp': time.time()
         }
-        
-        # Add dynamic parameters that might be present in the request
-        dynamic_params = ['product_id', 'inventory_id', 'sku', 'keyword', 'page_number']
-        for param in dynamic_params:
-            if param in kwargs:
-                metadata[param] = kwargs[param]
-        
         return metadata
+class WayfairReviewsClient(WayfairClient):
+    """Specialized Wayfair client for product reviews with pagination support"""
+    
+    def __init__(self, config: SourceConfig):
+        super().__init__(config)
+        self.reviews_per_page = config.reviews_per_page if hasattr(config, 'reviews_per_page') else 10000
+    
+    async def process_reviews_with_pagination(
+        self,
+        proxy: Optional[Dict] = None,
+        semaphore: Optional[asyncio.Semaphore] = None,
+        **kwargs
+    ) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
+        """
+        Process reviews for a single SKU with pagination support.
+        This is the specialized method for reviews that handles page-by-page processing.
+        """
+        # Don't create a new semaphore here - let the caller handle it
+        # This avoids event loop binding issues
+        if semaphore is None:
+            logging.warning("No semaphore provided, creating a default one")
+            semaphore = asyncio.Semaphore(self.config.max_concurrent_requests)
+        
+        # Extract SKU and reviews_per_page from kwargs
+        sku = kwargs.get('sku')
+        if not sku:
+            raise ValueError("SKU is required for reviews processing")
+        
+        # Use reviews_per_page from kwargs if provided, otherwise fall back to config default
+        reviews_per_page = kwargs.get('reviews_per_page', self.reviews_per_page)
+        
+        results = []
+        page = 1
+        review_pages_total = None
+        while True:
+            # Build the request item for this page
+            request_item = {
+                'url': kwargs.get('url'),
+                'method': 'POST',
+                'payload': self._build_reviews_payload(sku, page, reviews_per_page),
+                'params': kwargs.get('params'),
+                'page_number': page,
+                'reviews_per_page': reviews_per_page
+            }
+            
+            try:
+                # Make the request using the base client's process_batch method
+                batch_results = await self.process_batch(
+                    items=[request_item],
+                    proxies=[proxy] if proxy else None,
+                    semaphore=semaphore
+                )
+                
+                if not batch_results or len(batch_results) == 0:
+                    break
+                
+                # Extract the result
+                result = batch_results[0]
+                if result is None or result[1] is None:
+                    break
+                
+                data, metadata = result
+                
+                # Add page number to the data for tracking
+                data['page_number'] = page
+                
+                # Build metadata with SKU and other relevant information
+                metadata = {
+                    'sku': sku,
+                    'page_number': page,
+                    'reviews_per_page': reviews_per_page,
+                    'url': kwargs.get('url'),
+                    'params': kwargs.get('params')
+                }
+                
+                # Return in the format expected by BaseSourceDAG: (data, metadata)
+                results.append((data, metadata))
+                
+                # Check if we need to continue pagination
+                if review_pages_total is None:
+                    review_pages_total = (
+                        data.get("data", {})
+                            .get("product", {})
+                            .get("customerReviews", {})
+                            .get("reviewPagesTotal")
+                    )
+                
+                review_pages_total = review_pages_total if isinstance(review_pages_total, int) else 0
+                
+                page += 1
+                if page > review_pages_total:
+                    break
+                    
+            except Exception as e:
+                logging.error(f"Failed to process page {page} for SKU {sku}: {e}")
+                break
+        
+        return results
+    
+    def _build_reviews_payload(self, sku: str, page_number: int, reviews_per_page: int) -> Dict[str, Any]:
+        """Build the reviews API request payload"""
+        return {
+            'variables': {
+                'sku': sku,
+                'sort_order': 'DATE_DESCENDING',
+                'page_number': page_number,
+                'filter_rating': '',
+                'reviews_per_page': reviews_per_page,
+                'search_query': '',
+                'language_code': 'en',
+            }
+        }
 
+class GGMerchantsClient(BaseSourceClient):
+    """GGMerchants-specific client implementation"""
+    
+    def parse_response(self, response: httpx.Response, **kwargs) -> Any:
+        """Parse Criteo response - accepts both JSON and text data"""
+        try:
+            # First try to parse as JSON
+            return response.json()
+        except Exception as json_error:
+            try:
+                # If JSON parsing fails, try to get text content
+                text_content = response.text
+                if text_content:
+                    # Return text content as a dictionary with a 'text' key
+                    return {'text': text_content, 'content_type': 'text'}
+                else:
+                    # If no text content, raise the original JSON error
+                    raise ValueError(f"Failed to parse JSON: {json_error}")
+            except Exception as text_error:
+                # If both JSON and text parsing fail, raise the original JSON error
+                raise ValueError(f"Failed to parse response as JSON or text: {json_error}")
+    def validate_response(self, response_data: Dict[str, Any], **kwargs) -> bool:
+        """Validate Criteo response - accepts both dict and text responses"""
+        # Accept both dictionary responses and text responses
+        if isinstance(response_data, dict):
+            return True
+        elif isinstance(response_data, str):
+            return True
+        elif isinstance(response_data, dict) and 'text' in response_data:
+            return True
+        return False
+    def build_metadata(self, **kwargs) -> Dict[str, Any]:
+        """Build Criteo-specific metadata"""
+        import time
+        metadata = {
+            'source': 'criteo',
+            'url': kwargs.get('url', None),
+            'proxy': kwargs.get('proxy', None),
+            'payload': kwargs.get('payload', None),
+            'params': kwargs.get('params', None),
+            'timestamp': time.time(),
+        }
+        return metadata
+class GGAdsClient(BaseSourceClient):
+    """GGAds-specific client implementation"""
+    
+    def parse_response(self, response: httpx.Response, **kwargs) -> Any:
+        """Parse Criteo response - accepts both JSON and text data"""
+        try:
+            # First try to parse as JSON
+            return response.json()
+        except Exception as json_error:
+            try:
+                # If JSON parsing fails, try to get text content
+                text_content = response.text
+                if text_content:
+                    # Return text content as a dictionary with a 'text' key
+                    return {'text': text_content, 'content_type': 'text'}
+                else:
+                    # If no text content, raise the original JSON error
+                    raise ValueError(f"Failed to parse JSON: {json_error}")
+            except Exception as text_error:
+                # If both JSON and text parsing fail, raise the original JSON error
+                raise ValueError(f"Failed to parse response as JSON or text: {json_error}")
+    def validate_response(self, response_data: Dict[str, Any], **kwargs) -> bool:
+        """Validate Criteo response - accepts both dict and text responses"""
+        # Accept both dictionary responses and text responses
+        if isinstance(response_data, dict):
+            return True
+        elif isinstance(response_data, str):
+            return True
+        elif isinstance(response_data, dict) and 'text' in response_data:
+            return True
+        return False
+    def build_metadata(self, **kwargs) -> Dict[str, Any]:
+        """Build Criteo-specific metadata"""
+        import time
+        metadata = {
+            'source': 'criteo',
+            'url': kwargs.get('url', None),
+            'proxy': kwargs.get('proxy', None),
+            'payload': kwargs.get('payload', None),
+            'params': kwargs.get('params', None),
+            'timestamp': time.time(),
+        }
+        return metadata
 
 def create_source_client(source_type: SourceType, config: SourceConfig) -> BaseSourceClient:
     """Factory function to create enhanced source-specific client"""
     client_map = {
         SourceType.WAYFAIR: WayfairClient,
         SourceType.WALMART: WalmartClient,
-        SourceType.SELLERCLOUD: SellerCloudClient,
+        SourceType.CRITEO: CriteoClient,
+        SourceType.LOWES: LowesClient,
+        SourceType.GG_MERCHANTS: GGMerchantsClient,
+        SourceType.GG_ADS: GGAdsClient
     }
     
     if source_type not in client_map:
         raise ValueError(f"Unsupported source type: {source_type}")
     
     return client_map[source_type](config)
+
+def create_wayfair_reviews_client(config: SourceConfig) -> WayfairReviewsClient:
+    """Factory function specifically for Wayfair reviews client"""
+    return WayfairReviewsClient(config)
