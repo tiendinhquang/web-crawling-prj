@@ -83,8 +83,8 @@ class CookieRefreshService(ABC):
             return success
             
         except Exception as e:
-            logging.error(f"Error updating cookie configuration for '{self.cookies_name}' with new cookies: {e}")
-            return False
+            raise Exception(f"Error updating cookie configuration for '{self.cookies_name}' with new cookies: {e}")
+            
     
     def refresh_cookies_and_update_config(self) -> bool:
         """
@@ -113,7 +113,7 @@ class CookieRefreshService(ABC):
             return success
             
         except Exception as e:
-            raise e('Error in cookies refresh process')
+            raise Exception(f'Error in cookies refresh process: {e}')
 
 
 class StandardCookieRefreshService(CookieRefreshService):
@@ -141,9 +141,16 @@ class StandardCookieRefreshService(CookieRefreshService):
             
             if response.status_code == 200:
                 data = response.json()
-                if 'cookies' in data:
+                
+                # Check for nested structure: credentials.cookies
+                if 'credentials' in data and 'cookies' in data['credentials']:
+                    new_cookies = data['credentials']['cookies']
+                    logging.info(f"Successfully fetched {len(new_cookies)} new cookies for '{self.cookies_name}' from credentials.cookies")
+                    return new_cookies
+                # Fallback: check for direct cookies key (backward compatibility)
+                elif 'cookies' in data:
                     new_cookies = data['cookies']
-                    logging.info(f"Successfully fetched {len(new_cookies)} new cookies for '{self.cookies_name}'")
+                    logging.info(f"Successfully fetched {len(new_cookies)} new cookies for '{self.cookies_name}' from direct cookies key")
                     return new_cookies
                 else:
                     logging.error(f"Invalid response format for '{self.cookies_name}': {data}")
@@ -181,7 +188,7 @@ class WalmartAdCookieService(StandardCookieRefreshService):
     def __init__(self):
         super().__init__(
             cookies_name='walmart_ad',
-            cookies_url='http://172.17.2.54:8000/api/v1/walmart/cookies'
+            cookies_url='http://172.17.2.54:8000/api/v1/walmart/credentials?vendor=walmart_ad'
         )
 
 class GGMerchantsCookieService(StandardCookieRefreshService):
@@ -194,7 +201,7 @@ class GGMerchantsCookieService(StandardCookieRefreshService):
     def __init__(self):
         super().__init__(
             cookies_name='gg_merchants',
-            cookies_url='http://172.17.2.54:8000/api/v1/gg-merchants/cookies'
+            cookies_url='http://172.17.2.54:8000/api/v1/gg-merchants/credentials'
         )
 
 class GGAdsCookieService(StandardCookieRefreshService):
@@ -202,7 +209,32 @@ class GGAdsCookieService(StandardCookieRefreshService):
     def __init__(self):
         super().__init__(
             cookies_name='gg_ads',
-            cookies_url='http://172.17.2.54:8000/api/v1/gg-ads/cookies'
+            cookies_url='http://172.17.2.54:8000/api/v1/gg-ads/credentials'
+        )
+class WayfairCookieService(StandardCookieRefreshService):
+    """
+    Specialized cookie service for Wayfair API.
+    
+    Inherits from StandardCookieRefreshService but can be extended with Wayfair-specific logic.
+    """
+    
+    def __init__(self):
+        super().__init__(
+            cookies_name='wayfair_product_info',
+            cookies_url='http://172.17.2.54:8000/api/v1/wayfair/credentials?page_type=wayfair_pdp&force_new_session=false'
+        )
+
+class WalmartSellerCookieService(StandardCookieRefreshService):
+    """
+    Specialized cookie service for Walmart Seller API.
+    
+    Inherits from StandardCookieRefreshService but can be extended with Walmart Seller-specific logic.
+    """
+    
+    def __init__(self):
+        super().__init__(
+            cookies_name='walmart_seller',
+            cookies_url='http://172.17.2.54:8000/api/v1/walmart/credentials?vendor=walmart_seller'
         )
 
 # Factory function to create cookie services
@@ -232,39 +264,37 @@ def create_cookie_service(service_type: str) -> CookieRefreshService:
 
 
 # Convenience functions for backward compatibility
-def refresh_lowes_vendor_cookies() -> bool:
+async def refresh_lowes_vendor_cookies() -> bool:
     """Refresh cookies for Lowes Vendor service."""
     service = LowesVendorCookieService()
     return service.refresh_cookies_and_update_config()
 
 
-def refresh_walmart_ad_cookies() -> bool:
+async def refresh_walmart_ad_cookies() -> bool:
     """Refresh cookies for Walmart Ad service."""
     service = WalmartAdCookieService()
     return service.refresh_cookies_and_update_config()
 
-def refresh_gg_merchants_cookies() -> bool:
+async def refresh_gg_merchants_cookies() -> bool:
     """Refresh cookies for GG Merchants service."""
     service = GGMerchantsCookieService()
     return service.refresh_cookies_and_update_config()
 
-def refresh_gg_ads_cookies() -> bool:
+async def refresh_gg_ads_cookies() -> bool:
     """Refresh cookies for GG Ads service."""
     service = GGAdsCookieService()
     return service.refresh_cookies_and_update_config()
 
-# if __name__ == "__main__":
-#     # Example usage
-#     try:
-#         # Refresh Lowes cookies
-#         print("Refreshing Lowes vendor cookies...")
-#         success = refresh_lowes_vendor_cookies()
-#         print(f"Lowes cookies refresh: {'Success' if success else 'Failed'}")
-        
-#         # Refresh Walmart cookies
-#         print("Refreshing Walmart ad cookies...")
-#         success = refresh_walmart_ad_cookies()
-#         print(f"Walmart cookies refresh: {'Success' if success else 'Failed'}")
-        
-#     except Exception as e:
-#         print(f"Error during cookie refresh: {e}") 
+async def refresh_walmart_seller_cookies() -> bool:
+    """Refresh cookies for Walmart Seller service."""
+    service = WalmartSellerCookieService()
+    return service.refresh_cookies_and_update_config()
+
+async def refresh_wayfair_cookies() -> bool:
+    """Refresh cookies for Wayfair service."""
+    service = WayfairCookieService()
+    return service.refresh_cookies_and_update_config()
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(refresh_walmart_seller_cookies())

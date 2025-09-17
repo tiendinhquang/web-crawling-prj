@@ -5,9 +5,26 @@ from datetime import datetime
 
 import logging
 from typing import List, Dict, Any, Union
+import yaml 
+from services.request_client import create_source_client, SourceType
+from utils.common.config_manager import update_header_config, update_cookie_config
+from config.wayfair_dag_configs import PRODUCT_DETAIL_PAGE
+from services.header_refresh_serivce import refresh_headers
+from services.cookie_refresh_service import refresh_wayfair_cookies
+with open('config/credentials.yaml', 'r') as f:
+    cfg = yaml.safe_load(f)
+
+TOKEN = cfg['token']
 
 logging.basicConfig(level=logging.DEBUG)
 class WayfairService:
+    def __init__(self):
+        self.refresh_credentials_url = "http://172.17.2.54:8000/api/v1/wayfair/credentials?page_type=wayfair_pdp&force_new_session=true"
+        self.client = create_source_client(SourceType.WAYFAIR, PRODUCT_DETAIL_PAGE)
+    async def on_error_callback(self):
+        await refresh_headers(['wayfair_product_info'], self.refresh_credentials_url)
+        await refresh_wayfair_cookies()
+        
     def get_product_variations(
         self,
         path: str = None, 
@@ -34,8 +51,6 @@ class WayfairService:
             - Invalid or unreadable files are logged and skipped.
         """
 
-        if path is None:
-            path = get_latest_folder(base_dir='data/wayfair') + '/product_detail/product_detail_page/'
         
         variations = []
         skus = set()  # Use set for automatic deduplication
@@ -105,8 +120,7 @@ class WayfairService:
             - Skips empty or malformed filenames gracefully.
         """
 
-        if path is None:
-            path = get_latest_folder(base_dir='data/wayfair') + '/product_detail/product_dimensions/'
+
         
         variations = []
         skus = set()
@@ -235,7 +249,6 @@ class WayfairService:
         logging.info(f"❌ Number of failed variations: {len(failed_variations)}")
         return failed_variations
 
-
-
-
-
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(WayfairService().on_error_callback())

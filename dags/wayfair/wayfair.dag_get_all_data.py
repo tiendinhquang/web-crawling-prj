@@ -5,9 +5,11 @@ from services.notification_handler import send_failure_notification
 import json
 import os
 import logging
-from config.wayfair_dag_configs import PRODUCT_DETAIL_PAGE, PRODUCT_INFO, PRODUCT_DIMENSIONS, PRODUCT_SPECIFICATION, PRODUCT_LIST
+from config.wayfair_dag_configs import PRODUCT_DETAIL_PAGE, PRODUCT_INFO, PRODUCT_DIMENSIONS, PRODUCT_SPECIFICATION, PRODUCT_LIST, PRODUCT_REVIEWS
 from datetime import datetime
 from services.wayfair_service import WayfairService
+from typing import List, Dict, Any, Tuple, Callable
+
 class WayfairGetProductDetail(BaseSourceDAG):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -335,6 +337,68 @@ class WayfairGetProductList(BaseSourceDAG):
         keyword = metadata.get('keyword', 'unknown')
         page_number = metadata.get('page_number', 1)
         return f'{keyword}_{page_number}.json'
+
+
+class WayfairGetProductReviews(BaseSourceDAG):
+    """DAG for extracting Wayfair product reviews using integrated request client"""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.path = f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_reviews'
+        os.makedirs(self.path, exist_ok=True)
+    
+    def get_items_to_process(self, mode: str = 'all') -> List[Dict[str, Any]]:
+        """Get product variations based on mode"""
+        if mode == 'all':
+            # Get all product variations for processing
+            all_variations = WayfairService().get_product_variations(self.path, has_variations=False)
+            return [{'sku': item,
+                     'reviews_per_page': 5000, 
+                     'review_pages_total': None,
+                     'url': f'https://www.wayfair.com/graphql',
+                     'params': {'hash': 'a636f23a2ad15b342db756fb5e0ea093'}
+                     } for item in all_variations]
+        elif mode == 'failed':
+            all_variations = WayfairService().get_product_variations(f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_detail_page', has_variations=False)
+            success_variations = WayfairService().get_success_product_variations(self.path, has_variations=False)
+            failed_variations = WayfairService().get_failed_product_variations(all_variations, success_variations, has_variations=False)
+            return [{'sku': item,
+                     'reviews_per_page': 5000, 
+                     'review_pages_total': None,
+                     'url': f'https://www.wayfair.com/graphql',
+                     'params': {'hash': 'a636f23a2ad15b342db756fb5e0ea093'}
+                     } for item in failed_variations]
+        else:
+            raise ValueError(f"Unsupported mode: {mode}")
+
+    def build_file_name(self, metadata):
+        """Build file name for reviews data"""
+        sku = metadata.get('sku', 'unknown')
+        page_number = metadata.get('page_number', 1)
+        reviews_per_page = metadata.get('reviews_per_page', 5000)
+        filename = f"{sku}_{page_number}_{reviews_per_page}.json"
+        return filename
+    
+    def process_batch(self, items: List[Any], proxies: List[str]) -> List[Tuple[Any, Any]]:
+        import asyncio
+        raw_results = asyncio.run(self.source_client.process_batch(
+            items=items,
+            proxies=proxies,
+            handler=self.source_client.process_reviews_with_pagination
+        ))
+        flattened: List[Tuple[Any, Any]] = []
+        for res in raw_results:
+            if isinstance(res, list):
+                if res:
+                    flattened.extend(res)
+                else:
+                    flattened.append((None, None))
+            elif isinstance(res, tuple) and len(res) == 2:
+                flattened.append(res)
+            else:
+                flattened.append((None, None))
+        return flattened
+    
 # Define the DAG types and their configurations
 dag_types = [
     {   'dag_id': 'wayfair.dag_get_product_detail',
@@ -371,6 +435,12 @@ dag_types = [
         'config': PRODUCT_LIST,
         'class': WayfairGetProductList
 
+    },
+    {
+        'dag_id': 'wayfair.dag_get_product_reviews',
+        'name': 'product_reviews',
+        'config': PRODUCT_REVIEWS, # No specific config for reviews, just a placeholder
+        'class': WayfairGetProductReviews
     }
     
 ]

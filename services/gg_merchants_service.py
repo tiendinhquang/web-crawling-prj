@@ -7,10 +7,12 @@ import yaml
 import logging
 from utils.common.config_manager import get_cookie_config, update_cookie_config, get_header_config
 from services.cookie_refresh_service import refresh_gg_merchants_cookies
+from services.header_refresh_serivce import refresh_headers
 import requests
 from utils.s3 import S3Hook
 import os 
 from config.gg_merchants_dag_configs import GG_MERCHANTS_CONFIG
+from utils.params_decoder import convert_params_to_dict
 with open('config/credentials.yaml', 'r') as f:
     credentials = yaml.safe_load(f)
 TOKEN = credentials['token']
@@ -18,31 +20,42 @@ TOKEN = credentials['token']
 class GGMerchantsService:
     def __init__(self):
         self.client = create_source_client(SourceType.GG_MERCHANTS, GG_MERCHANTS_CONFIG)
-        self.cookies_url = 'http://172.17.2.54:8000/api/v1/gg-merchants/cookies'
-        self.params_url = 'http://172.17.2.54:8000/api/v1/gg-merchants/params'
+        self.credentials_url = 'http://172.17.2.54:8000/api/v1/gg-merchants/credentials'
         self.create_report_url = 'https://merchants.google.com/mc_reporting/_/rpc/DownloadService/Download'
         self.get_report_url = 'https://merchants.google.com/mc/download'
         self.cookies_name = 'gg_merchants'
         self.s3_hook = S3Hook()
 
-    def refresh_cookies_and_update_config(self) -> bool:
+    async def refresh_cookies_and_update_config(self) -> bool:
         """Main method to refresh cookies and update configuration using centralized service"""
-        return refresh_gg_merchants_cookies()
+        await refresh_headers(['gg_merchants_create_report', 'gg_merchants_get_report_status'], self.credentials_url)
+        await refresh_gg_merchants_cookies()
+        return True
+    
     async def get_params(self):
         headers = {
             'Authorization': f'Bearer {TOKEN}'
         }
-        response = requests.get(self.params_url, headers=headers)
-        return response.json()['params']
+        response = requests.get(self.credentials_url, headers=headers)
+        response_data = response.json()['credentials']['credentials']
+        url  = next(c['request_url'] for c in response_data if c['api_type'] == 'gg_merchants_create_report')
+        params = convert_params_to_dict(url)
+        logging.info(f"Get params success: {params}")
+        return params
     async def create_sku_visibility_report(self,start_date:datetime,end_date:datetime):
         start_date_str = start_date.strftime('%Y-%m-%d')
         end_date_str = end_date.strftime('%Y-%m-%d')
         params = await self.get_params()
+        params = {
+            'authuser': '0',
+            'rpcTrackingId': 'DownloadService.Download:1',
+            'f.sid': params['f.sid'],
+        }
 
         data = {
             'a': '325260250',
             'f.sid': params['f.sid'],
-            '__ar': '{"2":{"1":{"1":{"1":"7807751419","2":"SKU Visibility Report","3":{"1":[{"1":["Date.day","SegmentRawMerchantOfferId.raw_merchant_offer_id","SegmentTitle.title"],"2":[{"1":{"2":"anonymized_all_impressions"},"2":true}],"3":"0","4":"500"},{"1":["anonymized_all_impressions","all_clicks","anonymized_all_events_ctr","conversions","conversion_rate"]}],"4":{"1":28,"2":{"1":"__START_DATE__","2":"__END_DATE__"}},"9":{"1":1}},"4":{"3":[{"1":2}]},"5":{"1":"1751605377627","2":"1756721600891"}},"3":{"4":{"1":2}}}},"3":{"1":"1756722307","2":569000000},"4":4,"5":{"2":"SKU Visibility Report_2025-09-01_03:25:07"}}',
+            '__ar': '{"2":{"1":{"1":{"1":"7807751419","2":"SKU Visibility Report","3":{"1":[{"1":["Date.day","SegmentRawMerchantOfferId.raw_merchant_offer_id","SegmentTitle.title"],"2":[{"1":{"2":"anonymized_all_impressions"},"2":true}],"3":"0","4":"500"},{"1":["anonymized_all_impressions","all_clicks","anonymized_all_events_ctr","conversions","conversion_rate"]}],"4":{"1":28,"2":{"1":"__START_DATE__","2":"__END_DATE__"}},"9":{"1":1}},"4":{"3":[{"1":2}]},"5":{"1":"1751605377627","2":"1757316308941"}},"3":{"4":{"1":2}}}},"3":{"1":"1757317743","2":221000000},"4":4,"5":{"2":"SKU Visibility Report_2025-09-08_00:49:03"}}',
         }
 
         # thay thế trực tiếp
@@ -59,7 +72,8 @@ class GGMerchantsService:
             method='POST',
             params=params,
             data=data,
-            semaphore=semaphore
+            semaphore=semaphore,
+            on_error=self.refresh_cookies_and_update_config
         )
         id = response['2']['1']
         logging.info(f"Create report success with id: {id}, date range from {start_date_str} to {end_date_str}")
@@ -67,31 +81,26 @@ class GGMerchantsService:
 
     async def get_report_status(self,id:str):
         params = {
-            'authuser': '0',
-            'rpcTrackingId': 'DownloadService.Download:1',
-            'f.sid': '-1242487546587814700',
-        }
-
-
-        data = {
             'a': '325260250',
-            'f.sid': '5044951462939783000',
-            '__ar': '{"2":{"2":[{"1":"type","2":3,"3":[{"2":"7"}]}]}}',
+            'authuser': '0',
+            'id': str(id),
         }
+
 
         semaphore = asyncio.Semaphore(1)
         headers = get_header_config('gg_merchants_get_report_status')
+
         response, metadata = await self.client.make_request_with_retry(
-            'https://merchants.google.com/mc/_/rpc/AlertService/List',
+            self.get_report_url,
+            method='GET',
             params=params,
-            data=data,
-            semaphore=semaphore,
             headers=headers,
+            semaphore=semaphore,
+            on_error=self.refresh_cookies_and_update_config,
        
         )
         
-        ids = [str(item["3"]["4"]["1"]["1"]) for item in response["1"]]
-        if id in ids:
+        if metadata and metadata['response_status_code'] in [200, 302]:
             status = 'DONE'
         else:
             status = 'PENDING'
@@ -105,14 +114,14 @@ class GGMerchantsService:
         }
 
         semaphore = asyncio.Semaphore(1)
-        headers = get_header_config('gg_merchants_get_report')
+        headers = get_header_config('gg_merchants_get_report_status')
         response,metadata = await self.client.make_request_with_retry(
             self.get_report_url,
             method='GET',
             params=params,
             headers=headers,
             semaphore=semaphore,
-
+            on_error=self.refresh_cookies_and_update_config,
         )
         
         # The response should contain the actual report data
@@ -142,22 +151,15 @@ if __name__ == "__main__":
         gg_merchants_service = GGMerchantsService()
         start_date = datetime(2025, 8, 22)
         end_date = datetime.now()
-        # gg_merchants_service.refresh_cookies_and_update_config()
+        # await gg_merchants_service.refresh_cookies_and_update_config()
         # id = await gg_merchants_service.create_sku_visibility_report(start_date, end_date)
-        id = '1756721603580342766'
-        # data = await gg_merchants_service.get_report_data(id)
+        id = '1757925564382527961'
+        data = await gg_merchants_service.get_report_status(id)
         # print(data)
-        status = await gg_merchants_service.get_report_status(id)
-        print(status)
+        # data = await gg_merchants_service.get_report_data(id)
+        print(data)
     asyncio.run(main())
     
-    # json_data = {'vendorId': 89026, 'vendorName': 'ATLAS INTERNATIONAL INC       ', 'updatedOn': '2025-08-20', 'updatedBy': 'DTCB054 ', 'invoiceNumber': None, 'storeNumber': 0, 'source': 'RTM', 'status': None, 'deductionStatus': None, 'trackingNumber': 'LOWRTM016959961', 'deductionNumber': 'DM9040DA', 'deductionDate': '2025-08-20', 'sellingLocation': None, 'deductionAmount': -3308.25, 'approvedAmount': 0, 'debitBackupSent': None, 'dmrlLowesComments': None, 'dmrlPONumber': None}
-    # url  ="https://vendorgateway.lowes.com/vendorinquiry/vendorinquiry-api/deduction/findRTMDeductionDetails"
-    # headers = get_header_config('lowes_vendor')
-    # cookies = get_cookie_config('lowes_vendor')
-    # response = requests.post(url,headers=headers,cookies=cookies, json=json_data)
-    # print(response.json())
-    # print(deductions)
-    
+
     
     

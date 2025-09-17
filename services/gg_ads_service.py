@@ -11,6 +11,8 @@ import requests
 from utils.s3 import S3Hook
 import os 
 from config.gg_ads_dag_configs import GG_ADS_CONFIG
+from utils.params_decoder import convert_params_to_dict
+from services.header_refresh_serivce import refresh_headers
 with open('config/credentials.yaml', 'r') as f:
     credentials = yaml.safe_load(f)
 TOKEN = credentials['token']
@@ -19,17 +21,18 @@ class GGAdsService:
     def __init__(self):
         self.client = create_source_client(SourceType.GG_ADS, GG_ADS_CONFIG)
         self.crawler_bearer_token = TOKEN
-        self.cookies_url = 'http://172.17.2.54:8000/api/v1/gg-ads/cookies'
-        self.params_url = 'http://172.17.2.54:8000/api/v1/gg-ads/params'
+        self.credentials_url = 'http://172.17.2.54:8000/api/v1/gg-ads/credentials'
         self.create_report_url = 'https://ads.google.com/aw_reporting/dashboard/_/rpc/ReportDownloadService/DownloadReport'
         self.get_report_status_url = 'https://ads.google.com/aw_reporting/dashboard/_/rpc/ReportDownloadService/GetState'
         self.cookies_name = 'gg_ads'
         self.s3_hook = S3Hook()
 
 
-    def refresh_cookies_and_update_config(self) -> bool:
+    async def refresh_cookies_and_update_config(self) -> bool:
         """Main method to refresh cookies and update configuration using centralized service"""
-        return refresh_gg_ads_cookies()
+        await refresh_headers(['gg_ads_auction_insights'], self.credentials_url)
+        await refresh_gg_ads_cookies()
+        return True
 
     def _build_request_payload(self, report_type: str, start_date: datetime, end_date: datetime) -> dict:
         """
@@ -113,15 +116,27 @@ class GGAdsService:
     async def get_refresh_params(self):
         semaphore = asyncio.Semaphore(1)
         response, metadata = await self.client.make_request_with_retry(
-            self.params_url,
+            self.credentials_url,
             method='GET',
             semaphore=semaphore,
             headers=  {
                 'Authorization': f'Bearer {self.crawler_bearer_token}'
             }
         )
-        return response['params']
-    
+        url = next(c['request_url'] for c in response['credentials']['credentials'] if c['api_type'] == 'gg_ads_auction_insights')
+        params = convert_params_to_dict(url)
+        return params
+    async def refresh_cookies_and_update_config(self, force_new_session:bool = False):
+        if force_new_session:
+            self.credentials_url = 'http://172.17.2.54:8000/api/v1/gg-ads/credentials?force_new_session=true'
+
+        await refresh_headers(['gg_ads_auction_insights'], self.credentials_url)
+        await refresh_gg_ads_cookies()
+        return True
+    async def on_error_callback(self, force_new_session:bool = False):
+        await self.refresh_cookies_and_update_config(force_new_session)
+        await self.get_refresh_params()
+        logging.info(f"✅ on_error callback triggered")
     async def create_report(self, report_type:str ,start_date:datetime, end_date:datetime):
         # Build the request payload using the new method
         data = self._build_request_payload(report_type, start_date, end_date)
@@ -143,10 +158,12 @@ class GGAdsService:
             params=params,
             data=data,
             semaphore=semaphore,
+            on_error=self.on_error_callback,
         )
         
         #{"1":"1055136338"}
         if '1' not in response:
+            await self.on_error_callback(force_new_session=True)
             raise Exception(f"Create report failed with response: {response}")
         id = response['1']
         logging.info(f"Create report success with id: {id}")
@@ -181,13 +198,14 @@ class GGAdsService:
         }
 
         semaphore = asyncio.Semaphore(1)
-        headers = get_header_config('gg_ads_get_report_status')
+        headers = get_header_config('gg_ads_auction_insights')
         response, metadata = await self.client.make_request_with_retry(
             self.get_report_status_url,
             params=params,
             data=data,
             semaphore=semaphore,
             headers=headers,
+            on_error=self.on_error_callback,
         )
         
         report_url = response.get('1').get('4', None)
@@ -207,6 +225,7 @@ class GGAdsService:
             semaphore=semaphore,
             headers = {},
             cookies = {},
+            on_error=self.on_error_callback,
         )
         
         # The response should contain the actual report data
@@ -230,20 +249,42 @@ class GGAdsService:
 
 if __name__ == "__main__":
     import asyncio
-    async def main():
-        gg_ads_service = GGAdsService()
-        start_date = datetime(2025, 8, 22)
-        end_date = datetime.now()
-        # gg_ads_service.refresh_cookies_and_update_config()
+    gg_ads_service = GGAdsService()
+    # async def main():
+        
+        # start_date = datetime(2025, 8, 22)
+        # end_date = datetime.now()
+        # await gg_ads_service.refresh_cookies_and_update_config()
         # report_type = 'auction_insights_daily_shopping'
-        # id = await gg_ads_service.create_report(report_type ,start_date, end_date)
-        # id = '1055340276'
+        # id = await gg_ads_service.create_report( 'auction_insights_daily_shopping' ,start_date, end_date)
+        # id = '1061563134'
         # response = await gg_ads_service.get_report_status(id)
         # print(response)
         # report_url = 'https://storage.googleapis.com/awn-report-download/download/1055340276/Auction%20insights%20report.csv?GoogleAccessId=816718982741-compute@developer.gserviceaccount.com&Expires=1756264278&response-content-disposition=attachment&Signature=rDutHAtM%2FNl3MnIFoaF7qZm%2FpIfLKVuVk5FajV8k8c3r98L9nlk02Ql8dXxP1t1UVXaHO747cU7CzsmwcIVbEMgTUokhv%2FwX1CwsoVdqd%2BFMCi6DvFBD1YaWsnMhqCz0%2FN7iDcBSBQzq6R2gQzN376if%2BXKyz8SWGhwpJTbl37fumZAJqUKle3fr9YrXkz8PAYUuhj2POXgZUchKCFMCnvmkDfCkyI4j52hie%2Fw37qd6kVvbCwYv%2FaK8ezYpzJ1F4VFDj%2FN1cKDhQzp1c60eClP10yU17%2BUXwePk8AVPmhRLGTerze%2Fv2fCFEC%2FGArsLdCLx5cBH4d1Vb0%2BOCo68Lw%3D%3D'
         # response = await gg_ads_service.get_report_data(report_url)
         # print(response)
-        refresh_params = await gg_ads_service.get_refresh_params()
-        print(refresh_params)
-    asyncio.run(main())
+        # refresh_params = await gg_ads_service.get_refresh_params()
+        # print(refresh_params)
+    # asyncio.run(main())
     
+    
+
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    # Giả sử on_error_callback là hàm đồng bộ
+    def test():
+        asyncio.run(gg_ads_service.on_error_callback())
+
+    async def main():
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            # submit 3 tasks vào thread pool
+            tasks = [
+                loop.run_in_executor(pool, test),
+                loop.run_in_executor(pool, test),
+                loop.run_in_executor(pool, test),
+            ]
+            await asyncio.gather(*tasks)
+
+    asyncio.run(main())

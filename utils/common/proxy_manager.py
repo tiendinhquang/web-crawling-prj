@@ -324,11 +324,11 @@ def get_working_proxies_sync(limit: int = 100, proxy_path: Optional[str] = None)
 if __name__ == '__main__':
     try:
         # Test the proxy manager
-        working_proxies = get_working_proxies_sync(limit=10)
+        working_proxies = get_working_proxies_sync(limit=30)
         
         if working_proxies:
             print(f"Found {len(working_proxies)} working proxies:")
-            for proxy in working_proxies[:5]:  # Show first 5
+            for proxy in working_proxies[:10]:  # Show first 5
                 print(f"  - {proxy}")
         else:
             print("No working proxies found")

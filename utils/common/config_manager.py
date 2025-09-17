@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional, List, Union
 import yaml
 from pathlib import Path
 import sys
+from filelock import FileLock
 
 logging.basicConfig(level=logging.INFO)
 logging = logging.getLogger(__name__)
@@ -209,7 +210,7 @@ class HeaderConfigLoader(JsonConfigLoader):
 
     def update_header(self, header_name: str, new_headers: Dict[str, Any]) -> bool:
         """
-        Update header configuration for a specific header name.
+        Update header configuration for a specific header name with file locking.
         
         Args:
             header_name: Name of the header configuration to update
@@ -230,24 +231,28 @@ class HeaderConfigLoader(JsonConfigLoader):
             logging.error("New headers must be a dictionary")
             raise ValueError("New headers must be a dictionary")
         
+        # Create lock file path
+        lock_file = f"{self.config_path}.lock"
+        
         try:
-            # Reload config to get latest version
-            self.config = self.load_config()
-            
-            if not self.config:
-                logging.error("No configuration loaded, cannot update headers")
-                raise ConfigError("No configuration loaded, cannot update headers")
-            
-            # Update the header configuration
-            self.config[header_name] = new_headers
-            
-            # Save the updated configuration back to file
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, indent=4, ensure_ascii=False)
-            
-            logging.info(f"Successfully updated header configuration for '{header_name}' with {len(new_headers)} items")
-            return True
-            
+            with FileLock(lock_file, timeout=10):
+                # Reload config to get latest version
+                self.config = self.load_config()
+                
+                if not self.config:
+                    logging.error("No configuration loaded, cannot update headers")
+                    raise ConfigError("No configuration loaded, cannot update headers")
+                
+                # Update the header configuration
+                self.config[header_name] = new_headers
+                
+                # Save the updated configuration back to file
+                with open(self.config_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.config, f, indent=4, ensure_ascii=False)
+                
+                logging.info(f"Successfully updated header configuration for '{header_name}' with {len(new_headers)} items")
+                return True
+                
         except Exception as e:
             logging.error(f"Error updating header configuration for '{header_name}': {e}")
             raise ConfigError(f"Error updating header configuration for '{header_name}': {e}")
@@ -291,7 +296,7 @@ class CookieConfigLoader(JsonConfigLoader):
 
     def update_cookie(self, cookie_name: str, new_cookies: Dict[str, Any]) -> bool:
         """
-        Update cookie configuration for a specific cookie name.
+        Update cookie configuration for a specific cookie name with file locking.
         
         Args:
             cookie_name: Name of the cookie configuration to update
@@ -312,24 +317,28 @@ class CookieConfigLoader(JsonConfigLoader):
             logging.error("New cookies must be a dictionary")
             raise ValueError("New cookies must be a dictionary")
         
+        # Create lock file path
+        lock_file = f"{self.config_path}.lock"
+        
         try:
-            # Reload config to get latest version
-            self.config = self.load_config()
-            
-            if not self.config:
-                logging.error("No configuration loaded, cannot update cookies")
-                raise ConfigError("No configuration loaded, cannot update cookies")
-            
-            # Update the cookie configuration
-            self.config[cookie_name] = new_cookies
-            
-            # Save the updated configuration back to file
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, indent=4, ensure_ascii=False)
-            
-            logging.info(f"Successfully updated cookie configuration for '{cookie_name}' with {len(new_cookies)} items")
-            return True
-            
+            with FileLock(lock_file, timeout=10):
+                # Reload config to get latest version
+                self.config = self.load_config()
+                
+                if not self.config:
+                    logging.error("No configuration loaded, cannot update cookies")
+                    raise ConfigError("No configuration loaded, cannot update cookies")
+                
+                # Update the cookie configuration
+                self.config[cookie_name] = new_cookies
+                
+                # Save the updated configuration back to file
+                with open(self.config_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.config, f, indent=4, ensure_ascii=False)
+                
+                logging.info(f"Successfully updated cookie configuration for '{cookie_name}' with {len(new_cookies)} items")
+                return True
+                
         except Exception as e:
             logging.error(f"Error updating cookie configuration for '{cookie_name}': {e}")
             raise ConfigError(f"Error updating cookie configuration for '{cookie_name}': {e}")
@@ -434,14 +443,20 @@ def update_header_config(header_name: str, new_headers: Dict[str, Any], path= No
         ConfigError: If configuration update fails
         ValueError: If header_name or new_headers are invalid
     """
+
     try:
         if not BASE_DIR:
             logging.error("BASE_DIR environment variable not set")
             raise ConfigError("BASE_DIR environment variable not set")
+        
         if not path:
             config_path = os.path.join(BASE_DIR, "config", "headers_config.json")
-            config_loader = HeaderConfigLoader(config_path)
+        else:
+            config_path = path
+        
+        config_loader = HeaderConfigLoader(config_path)
         return config_loader.update_header(header_name, new_headers)
+
         
     except ConfigError:
         # Re-raise ConfigError from HeaderConfigLoader
@@ -468,9 +483,12 @@ def get_cookie_config(cookie_name: str, path= None) -> Dict[str, Any]:
         if not BASE_DIR:
             logging.error("BASE_DIR environment variable not set")
             raise ConfigError("BASE_DIR environment variable not set")
+        
         if not path:
             config_path = os.path.join(BASE_DIR, "config", "cookies_config.json")
-            config_loader = CookieConfigLoader(config_path)
+        else:
+            config_path = path
+            
         config_loader = CookieConfigLoader(config_path)
         return config_loader.load(cookie_name)
         
@@ -501,9 +519,13 @@ def update_cookie_config(cookie_name: str, new_cookies: Dict[str, Any], path= No
         if not BASE_DIR:
             logging.error("BASE_DIR environment variable not set")
             raise ConfigError("BASE_DIR environment variable not set")
+        
         if not path:
             config_path = os.path.join(BASE_DIR, "config", "cookies_config.json")
-            config_loader = CookieConfigLoader(config_path)
+        else:
+            config_path = path
+            
+        config_loader = CookieConfigLoader(config_path)
         return config_loader.update_cookie(cookie_name, new_cookies)
         
     except ConfigError:
@@ -545,8 +567,22 @@ def get_mapping_config(table_code: Optional[str] = None) -> Optional[Dict[str, A
         raise ConfigError(f"Unexpected error getting mapping config for table '{table_code}': {e}")
 
 
-# # Example usage and testing
-# if __name__ == '__main__':
-#     config = get_mapping_config('wayfair.product_skus')
-#     print(config)
+# Example usage and testing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
+def run_get_header(name: str):
+    config = get_cookie_config(name)
+    return name, config
+
+if __name__ == '__main__':
+    header_names = [
+        'wayfair_product_info','wayfair_product_info','wayfair_product_info','wayfair_product_info'
+    ]
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=4) as executor:  # max_workers = số thread
+        futures = {executor.submit(run_get_header, name): name for name in header_names}
+        for future in as_completed(futures):
+            name, config = future.result()
+            results[name] = config
+            print(f"{name}: {config}")

@@ -37,9 +37,9 @@ class WalmartAdService:
         )
         return cookies_response['cookies']
     
-    def refresh_cookies_and_update_config(self) -> bool:
+    async def refresh_cookies_and_update_config(self) -> bool:
         """Main method to refresh cookies and update configuration using centralized service"""
-        return refresh_walmart_ad_cookies()
+        return await refresh_walmart_ad_cookies()
     
     async def create_report(self, report_type, **kwargs):
         params = {
@@ -84,6 +84,8 @@ class WalmartAdService:
             payload=json_data,
             semaphore=semaphore
         )
+        if response['response']['code'] == 'failure':
+            raise Exception(f"Failed to create report: {response['response']['message']}")
         response['request_time'] = pdt_time.strftime('%Y-%m-%d %H:%M:%S')
         response['reportType'] = report_type
         return response
@@ -103,7 +105,8 @@ class WalmartAdService:
         )
         if 'response' not in response:
             logging.error(f"logging session expired, refreshing cookies and update config")
-            self.refresh_cookies_and_update_config()
+            await self.refresh_cookies_and_update_config()
+
         reports = response['response']
 
         return reports
@@ -143,7 +146,7 @@ if __name__ == '__main__':
     async def main():
         walmart_ad = WalmartAdService()
         walmart_ad.refresh_cookies_and_update_config()
-        response = await walmart_ad.create_report(report_type='adItem',startDate='2025-08-13',endDate='2025-08-13')
+        response = await walmart_ad.get_report()
         print(response)
     asyncio.run(main())
     pass

@@ -131,7 +131,7 @@ class GGAdsSourceDAG(BaseReportsDAG):
     def refresh_credentials(self):
         """Refresh Google Ads cookies and update config"""
         service = self.get_service()
-        service.refresh_cookies_and_update_config()
+        asyncio.run(service.refresh_cookies_and_update_config())
         
         #
     

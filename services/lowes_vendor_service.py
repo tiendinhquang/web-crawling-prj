@@ -23,9 +23,9 @@ class LowesVendorService:
         self.cookies_name = 'lowes_vendor'
 
             
-    def refresh_cookies_and_update_config(self) -> bool:
+    async def refresh_cookies_and_update_config(self) -> bool:
         """Main method to refresh cookies and update configuration using centralized service"""
-        return refresh_lowes_vendor_cookies()
+        return await refresh_lowes_vendor_cookies()
 
     async def get_rtm_deductions_list(self, start_date, end_date):
         url = f"{self.base_api_url}/deduction/findRTMDeductionList"
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         lowes_vendor_service = LowesVendorService()
         start_date = datetime(2025, 6, 22)
         end_date = datetime.now()
-        lowes_vendor_service.refresh_cookies_and_update_config()
+        # await lowes_vendor_service.refresh_cookies_and_update_config()
         deductions = await lowes_vendor_service.get_rtm_deductions_list(start_date, end_date)
         # print(deductions)
     asyncio.run(main())

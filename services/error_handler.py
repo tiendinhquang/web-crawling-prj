@@ -287,6 +287,13 @@ class ErrorStats:
             if total_operations > 0 else 100
         )
         
+        # Count response codes
+        response_codes = {}
+        for failed_op in self.failed_operations:
+            if failed_op.get('response_code'):
+                code = failed_op['response_code']
+                response_codes[code] = response_codes.get(code, 0) + 1
+        
         return {
             'total_operations': total_operations,
             'total_errors': self.total_errors,
@@ -294,6 +301,7 @@ class ErrorStats:
             'retries_performed': self.retries_performed,
             'successful_retries': self.successful_retries,
             'errors_by_type': self.errors_by_type,
+            'response_codes': response_codes,
             'failed_operations': self.failed_operations
         }
 
@@ -351,6 +359,7 @@ class UniversalErrorHandler:
         operation: Callable,
         identifier: str,
         operation_name: Optional[str] = None,
+        on_error: Optional[Callable[[], None]] = None,
         *args,
         **kwargs
     ) -> Tuple[str, Optional[Dict]]:
@@ -402,12 +411,21 @@ class UniversalErrorHandler:
                 # Record failure in circuit breaker
                 self.circuit_breaker.record_failure()
                 
+                # Trigger on_error callback for 4xx client errors
+                if on_error and response_code and 400 < response_code < 500:
+                    try:
+                        await on_error()
+                        logging.info(f"✅ on_error callback triggered for {identifier}")
+                    except Exception as callback_error:
+                        logging.error(f"Error in on_error callback: {callback_error}")
+                
                 # Check if we should retry
                 if not self.should_retry(error_context):
                     self.error_stats.failed_operations.append({
                         'identifier': identifier,
                         'error_type': error_type.value,
                         'error_message': str(e),
+                        'response_code': response_code,
                         'attempts': attempt
                     })
                     logging.error(f"❌ {identifier} failed after {attempt} attempts")
@@ -426,11 +444,12 @@ class UniversalErrorHandler:
         operation: Callable,
         identifier: str,
         operation_name: Optional[str] = None,
+        on_error: Optional[Callable[[ErrorContext], None]] = None,
         *args,
         **kwargs
     ) -> Tuple[str, Optional[Dict]]:
         """Execute a synchronous operation with retry logic"""
-        return asyncio.run(self.execute_with_retry(operation, identifier, operation_name, *args, **kwargs))
+        return asyncio.run(self.execute_with_retry(operation, identifier, operation_name, on_error, *args, **kwargs))
 
 
 # Factory functions for creating error handlers with different configurations

@@ -60,7 +60,7 @@ class GGMerchantsSourceDAG(BaseReportsDAG):
     def refresh_credentials(self):
         """Refresh GG Merchants cookies and update config"""
         service = self.get_service()
-        service.refresh_cookies_and_update_config()
+        asyncio.run(service.refresh_cookies_and_update_config())
     
     async def create_report(self, report_config):
         """Create a GG Merchants report and return the response"""

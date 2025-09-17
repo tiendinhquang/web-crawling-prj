@@ -224,8 +224,7 @@ class CriteoService:
                 return None
                 
         except Exception as e:
-            logging.error(f"Error fetching new token: {e}")
-            return None
+            raise e
     
     async def _update_headers_with_new_token(self, new_token: str) -> bool:
         """Update header configuration with new bearer token"""
@@ -247,8 +246,7 @@ class CriteoService:
             return success
             
         except Exception as e:
-            logging.error(f"Error updating headers with new token: {e}")
-            return False
+            raise e
     
     async def refresh_token_and_update_headers(self) -> bool:
         """Main method to refresh token and update headers"""
@@ -294,6 +292,8 @@ class CriteoService:
 
         if report_type == 'capout':
             url = f'https://rm-reporting.criteo.net/dashboards/rm-dsp-analytics-capout-flexible/api/exports/csv'
+        elif report_type == 'share_of_voice':
+            url = f'https://rm-reporting.criteo.net/dashboards/rm-dsp-analytics-share-of-voice-flexible/api/datasets/share-of-voice'
         elif report_type == 'attributed_transaction':
             json_data = f'clientIds=464783722056458240&dateRange=en,America%2FNew_York,1,{start_date_str}_{end_date_str},PREVIOUS_PERIOD&currency=USD&campaignIds={",".join(campaign_ids)}&rmAccountName=Atlas%2520International%252C%2520Inc&currencySymbol=%24&currencySymbolLeft=true'
             params = {  
@@ -317,6 +317,8 @@ class CriteoService:
             params=params,
             semaphore=semaphore
         )
+        if response['status'] == 'ERROR':
+            raise Exception(f"Report creation failed. Error: {response['error']}")
         logging.info(f"Report created successfully. ID: {response['id']}")
         return response['id']
 
@@ -337,6 +339,8 @@ class CriteoService:
         semaphore = asyncio.Semaphore(1)
         if report_type == 'capout':
             url = f'https://rm-reporting.criteo.net/dashboards/rm-dsp-analytics-capout-flexible/api/exports/csv'
+        elif report_type == 'share_of_voice':
+            url = f'https://rm-reporting.criteo.net/dashboards/rm-dsp-analytics-share-of-voice-flexible/api/datasets/share-of-voice'
         elif report_type == 'attributed_transaction':
             params = {
                 "clientIds": "464783722056458240",
@@ -428,15 +432,15 @@ class CriteoService:
             f.write(response['text'])
         logging.info(f"Report data saved to local. Path: {path}")
     
-if __name__ == "__main__":
-    import asyncio
-    criteo_service = CriteoService()
-    # campaign_ids = criteo_service.get_campaign_ids()
-    # asyncio.run(criteo_service.refresh_token_and_update_headers())
+# if __name__ == "__main__":
+#     import asyncio
+#     criteo_service = CriteoService()
+#     # campaign_ids = criteo_service.get_campaign_ids()
+#     # asyncio.run(criteo_service.refresh_token_and_update_headers())
 
-    dimensions = "campaign_name,date,campaign_id"
-    metrics = "impressions,clicks,ctr,win_rate,total_spend,cpc,unique_visitors,frequency,assisted_units,assisted_sales,attributed_units,attributed_sales,roas,discarded_product_clicks,new_to_global_brand_attributed_sales"
+#     dimensions = "campaign_name,date,campaign_id"
+#     metrics = "impressions,clicks,ctr,win_rate,total_spend,cpc,unique_visitors,frequency,assisted_units,assisted_sales,attributed_units,attributed_sales,roas,discarded_product_clicks,new_to_global_brand_attributed_sales"
 
-    asyncio.run(criteo_service.create_report_by_date_range(report_type='campaign', start_date=datetime.now() - timedelta(days=14), end_date=datetime.now(), dimensions=dimensions, metrics=metrics))
-    line_item_ids = criteo_service.get_line_item_ids()
-    print(asyncio.run(criteo_service.get_processed_line_item_ids(line_item_ids=line_item_ids, process_date=datetime.now(), base_path='bid_multiplier')))
+#     asyncio.run(criteo_service.create_report_by_date_range(report_type='campaign', start_date=datetime.now() - timedelta(days=14), end_date=datetime.now(), dimensions=dimensions, metrics=metrics))
+#     line_item_ids = criteo_service.get_line_item_ids()
+#     print(asyncio.run(criteo_service.get_processed_line_item_ids(line_item_ids=line_item_ids, process_date=datetime.now(), base_path='bid_multiplier')))

@@ -79,7 +79,8 @@ class BaseReportsDAG(ABC):
             
             for report_config in report_configs:
                 try:
-                    report_id = asyncio.run(self.create_report(report_config))
+                    timeout_seconds = report_config.get('create_timeout_seconds', 300)
+                    report_id = asyncio.run(asyncio.wait_for(self.create_report(report_config), timeout=timeout_seconds))
                     
                     logging.info(f"✅ Report {self.get_report_identifier(report_config)} created with ID: {report_id}")
                     results.append({

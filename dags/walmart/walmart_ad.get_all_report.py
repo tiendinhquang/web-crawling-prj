@@ -34,12 +34,12 @@ class WalmartAdSourceDAG(BaseReportsDAG):
     def refresh_credentials(self):
         """Refresh Walmart Ad cookies and update config"""
         service = self.get_service()
-        service.refresh_cookies_and_update_config()
+        asyncio.run(service.refresh_cookies_and_update_config())
     
     async def create_report(self, report_config):
         """Create a Walmart Ad report and return the response"""
         service = self.get_service()
-        end_date = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+        end_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
         start_date = (datetime.now() - timedelta(days=16)).strftime("%Y-%m-%d")
         
         return await service.create_report(

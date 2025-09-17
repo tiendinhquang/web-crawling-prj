@@ -9,3 +9,5 @@ sqlalchemy
 dotenv
 boto3
 mypy_boto3_s3
+msal
+filelock

@@ -12,7 +12,7 @@ from enum import Enum
 # Import existing utils and error handler
 from utils.common.config_manager import get_header_config, get_cookie_config
 from utils.common.proxy_manager import get_working_proxies_sync
-from services.error_handler import create_error_handler, UniversalErrorHandler
+from services.error_handler import create_error_handler, UniversalErrorHandler, ErrorContext
 
 
 class SourceType(Enum):
@@ -60,7 +60,7 @@ class SourceConfig:
     api_url: str
     headers_name: str
     cookies_name: str
-    api_type: Optional[str] = None  # For Wayfair: WayfairApiType value
+    api_type: Optional[str] = None  
     timeout_seconds: int = 30
     api_hash: Optional[str] = None
     auth_token: Optional[str] = None
@@ -74,7 +74,7 @@ class SourceConfig:
     num_proxies: int = 30
     base_path: str = ''
     from_src: str = ''
-    reviews_per_page: int = 10000 # Added for WayfairReviewsClient
+
 
 
 class BaseSourceClient(ABC):
@@ -190,6 +190,7 @@ class BaseSourceClient(ABC):
                 hash=self.config.api_hash,
                 proxy=str(proxy) if proxy else '',
                 payload=payload,  # Keep as dictionary
+                data=data,
                 params=str(params) if params else '',
                 response_status_code=response.status_code,
                 **kwargs
@@ -208,6 +209,7 @@ class BaseSourceClient(ABC):
         semaphore: Optional[asyncio.Semaphore] = None,
         headers: Optional[Dict] = None,
         cookies: Optional[Dict] = None,
+        on_error: Optional[Callable[[ErrorContext], None]] = None,
         **kwargs
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
@@ -219,17 +221,18 @@ class BaseSourceClient(ABC):
         if semaphore:
             async with semaphore:
                 return await self.error_handler.execute_with_retry(
-                    self._make_single_request,
-                    f"{self.build_metadata(url=url, method=method, payload=payload, params=params, proxy=proxy)}",
-                    'make_request_with_retry',
-                    url,
-                    method,
-                    payload,
-                    data,
-                    params,
-                    proxy,
-                    headers,
-                    cookies,
+                    operation=self._make_single_request,
+                    identifier=self.build_metadata(url=url, method=method, payload=payload, data=data, params=params, proxy=proxy),
+                    operation_name='make_request_with_retry',
+                    url=url,
+                    method=method,
+                    payload=payload,
+                    data=data,
+                    params=params,
+                    proxy=proxy,
+                    headers=headers,
+                    cookies=cookies,
+                    on_error=on_error,
                     **kwargs
                 )
         else:
@@ -241,6 +244,7 @@ class BaseSourceClient(ABC):
         items: list,
         proxies: Optional[list] = None,
         semaphore: Optional[asyncio.Semaphore] = None,
+        handler: Optional[Callable] = None,
         **kwargs
     ) -> list:
         """
@@ -254,7 +258,9 @@ class BaseSourceClient(ABC):
         # Create semaphore if not provided to avoid event loop binding issues
         if semaphore is None:
             semaphore = asyncio.Semaphore(self.config.max_concurrent_requests)
-        
+        # default handler
+        if handler is None:
+            handler = self.make_request_with_retry
         tasks = []
         proxy_idx = 0
         
@@ -274,7 +280,7 @@ class BaseSourceClient(ABC):
             method = item.get('method', 'POST')
             
             tasks.append(
-                self.make_request_with_retry(
+                handler(
                     proxy=proxy,
                     semaphore=semaphore,
                     **item
@@ -297,7 +303,110 @@ class WayfairClient(BaseSourceClient):
     def validate_response(self, response_data: Dict[str, Any], **kwargs) -> bool:
         """Validate Wayfair response"""
         return isinstance(response_data, dict)
-    
+    def _build_reviews_payload(self, sku: str, page_number: int, reviews_per_page: int) -> Dict[str, Any]:
+        """Build the reviews API request payload"""
+        return {
+            'variables': {
+                'sku': sku,
+                'sort_order': 'DATE_DESCENDING',
+                'page_number': page_number,
+                'filter_rating': '',
+                'reviews_per_page': reviews_per_page,
+                'search_query': '',
+                'language_code': 'en',
+            }
+        }
+    async def process_reviews_with_pagination(
+        self,
+        proxy: Optional[Dict] = None,
+        semaphore: Optional[asyncio.Semaphore] = None,
+        **kwargs
+    ) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
+        """
+        Process reviews for a single SKU with pagination support.
+        This is the specialized method for reviews that handles page-by-page processing.
+        """
+        # Don't create a new semaphore here - let the caller handle it
+        # This avoids event loop binding issues
+        if semaphore is None:
+            logging.warning("No semaphore provided, creating a default one")
+            semaphore = asyncio.Semaphore(self.config.max_concurrent_requests)
+        
+        # Extract SKU and reviews_per_page from kwargs
+        sku = kwargs.get('sku')
+        if not sku:
+            raise ValueError("SKU is required for reviews processing")
+        
+        # Use reviews_per_page from kwargs if provided, otherwise fall back to config default
+        reviews_per_page = kwargs.get('reviews_per_page', 10000)
+        
+        results = []
+        page = 1
+        review_pages_total = None
+        while True:
+            # Build the request item for this page
+            request_item = {
+                'url': kwargs.get('url'),
+                'method': 'POST',
+                'payload': self._build_reviews_payload(sku, page, reviews_per_page),
+                'params': kwargs.get('params'),
+                'page_number': page,
+                'reviews_per_page': reviews_per_page
+            }
+            
+            try:
+                # Make the request using the base client's process_batch method
+                batch_results = await self.process_batch(
+                    items=[request_item],
+                    proxies=[proxy] if proxy else None,
+                    semaphore=semaphore
+                )
+                
+                if not batch_results or len(batch_results) == 0:
+                    break
+                
+                # Extract the result
+                result = batch_results[0]
+                if result is None or result[1] is None:
+                    break
+                
+                data, metadata = result
+                
+                # Add page number to the data for tracking
+                data['page_number'] = page
+                
+                # Build metadata with SKU and other relevant information
+                metadata = {
+                    'sku': sku,
+                    'page_number': page,
+                    'reviews_per_page': reviews_per_page,
+                    'url': kwargs.get('url'),
+                    'params': kwargs.get('params')
+                }
+                
+                # Return in the format expected by BaseSourceDAG: (data, metadata)
+                results.append((data, metadata))
+                
+                # Check if we need to continue pagination
+                if review_pages_total is None:
+                    review_pages_total = (
+                        data.get("data", {})
+                            .get("product", {})
+                            .get("customerReviews", {})
+                            .get("reviewPagesTotal")
+                    )
+                
+                review_pages_total = review_pages_total if isinstance(review_pages_total, int) else 0
+                
+                page += 1
+                if page > review_pages_total:
+                    break
+                    
+            except Exception as e:
+                logging.error(f"Failed to process page {page} for SKU {sku}: {e}")
+                break
+        
+        return results
     def build_metadata(self, **kwargs) -> Dict[str, Any]:
         """Build Wayfair-specific metadata"""
         import time
@@ -311,7 +420,7 @@ class WayfairClient(BaseSourceClient):
         }
         
         # Add dynamic parameters that might be present in the request
-        dynamic_params = ['sku', 'selected_options', 'keyword', 'page_number']
+        dynamic_params = ['sku', 'selected_options', 'keyword', 'page_number', 'reviews_per_page']
         for param in dynamic_params:
             if param in kwargs:
                 metadata[param] = kwargs[param]
@@ -323,11 +432,23 @@ class WalmartClient(BaseSourceClient):
     """Enhanced Walmart-specific client implementation"""
     
     def parse_response(self, response: httpx.Response, **kwargs) -> Any:
-        """Parse Walmart response"""
+        """Parse Criteo response - accepts both JSON and text data"""
         try:
+            # First try to parse as JSON
             return response.json()
-        except Exception as e:
-            raise ValueError(f"Failed to parse JSON: {e}")
+        except Exception as json_error:
+            try:
+                # If JSON parsing fails, try to get text content
+                text_content = response.content
+                if text_content:
+                    # Return text content as a dictionary with a 'text' key
+                    return {'text': text_content, 'content_type': 'text'}
+                else:
+                    # If no text content, raise the original JSON error
+                    raise ValueError(f"Failed to parse JSON: {json_error}")
+            except Exception as text_error:
+                # If both JSON and text parsing fail, raise the original JSON error
+                raise ValueError(f"Failed to parse response as JSON or text: {json_error}")
     
     def validate_response(self, response_data: Dict[str, Any], **kwargs) -> bool:
         """Validate Walmart response"""
@@ -426,123 +547,15 @@ class LowesClient(BaseSourceClient):
             'url': kwargs.get('url', None),
             'proxy': kwargs.get('proxy', None),
             'params': kwargs.get('params', None),
-            'business_date': kwargs.get('business_date', None),
+            'payload': kwargs.get('payload', None),
             'tracking_number': kwargs.get('tracking_number', None),
+            'business_date': kwargs.get('business_date', None),
             'timestamp': time.time()
         }
         return metadata
-class WayfairReviewsClient(WayfairClient):
-    """Specialized Wayfair client for product reviews with pagination support"""
+
     
-    def __init__(self, config: SourceConfig):
-        super().__init__(config)
-        self.reviews_per_page = config.reviews_per_page if hasattr(config, 'reviews_per_page') else 10000
-    
-    async def process_reviews_with_pagination(
-        self,
-        proxy: Optional[Dict] = None,
-        semaphore: Optional[asyncio.Semaphore] = None,
-        **kwargs
-    ) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
-        """
-        Process reviews for a single SKU with pagination support.
-        This is the specialized method for reviews that handles page-by-page processing.
-        """
-        # Don't create a new semaphore here - let the caller handle it
-        # This avoids event loop binding issues
-        if semaphore is None:
-            logging.warning("No semaphore provided, creating a default one")
-            semaphore = asyncio.Semaphore(self.config.max_concurrent_requests)
-        
-        # Extract SKU and reviews_per_page from kwargs
-        sku = kwargs.get('sku')
-        if not sku:
-            raise ValueError("SKU is required for reviews processing")
-        
-        # Use reviews_per_page from kwargs if provided, otherwise fall back to config default
-        reviews_per_page = kwargs.get('reviews_per_page', self.reviews_per_page)
-        
-        results = []
-        page = 1
-        review_pages_total = None
-        while True:
-            # Build the request item for this page
-            request_item = {
-                'url': kwargs.get('url'),
-                'method': 'POST',
-                'payload': self._build_reviews_payload(sku, page, reviews_per_page),
-                'params': kwargs.get('params'),
-                'page_number': page,
-                'reviews_per_page': reviews_per_page
-            }
-            
-            try:
-                # Make the request using the base client's process_batch method
-                batch_results = await self.process_batch(
-                    items=[request_item],
-                    proxies=[proxy] if proxy else None,
-                    semaphore=semaphore
-                )
-                
-                if not batch_results or len(batch_results) == 0:
-                    break
-                
-                # Extract the result
-                result = batch_results[0]
-                if result is None or result[1] is None:
-                    break
-                
-                data, metadata = result
-                
-                # Add page number to the data for tracking
-                data['page_number'] = page
-                
-                # Build metadata with SKU and other relevant information
-                metadata = {
-                    'sku': sku,
-                    'page_number': page,
-                    'reviews_per_page': reviews_per_page,
-                    'url': kwargs.get('url'),
-                    'params': kwargs.get('params')
-                }
-                
-                # Return in the format expected by BaseSourceDAG: (data, metadata)
-                results.append((data, metadata))
-                
-                # Check if we need to continue pagination
-                if review_pages_total is None:
-                    review_pages_total = (
-                        data.get("data", {})
-                            .get("product", {})
-                            .get("customerReviews", {})
-                            .get("reviewPagesTotal")
-                    )
-                
-                review_pages_total = review_pages_total if isinstance(review_pages_total, int) else 0
-                
-                page += 1
-                if page > review_pages_total:
-                    break
-                    
-            except Exception as e:
-                logging.error(f"Failed to process page {page} for SKU {sku}: {e}")
-                break
-        
-        return results
-    
-    def _build_reviews_payload(self, sku: str, page_number: int, reviews_per_page: int) -> Dict[str, Any]:
-        """Build the reviews API request payload"""
-        return {
-            'variables': {
-                'sku': sku,
-                'sort_order': 'DATE_DESCENDING',
-                'page_number': page_number,
-                'filter_rating': '',
-                'reviews_per_page': reviews_per_page,
-                'search_query': '',
-                'language_code': 'en',
-            }
-        }
+
 
 class GGMerchantsClient(BaseSourceClient):
     """GGMerchants-specific client implementation"""
@@ -583,7 +596,9 @@ class GGMerchantsClient(BaseSourceClient):
             'url': kwargs.get('url', None),
             'proxy': kwargs.get('proxy', None),
             'payload': kwargs.get('payload', None),
+            'data': kwargs.get('data', None),
             'params': kwargs.get('params', None),
+            'response_status_code': kwargs.get('response_status_code', None),
             'timestamp': time.time(),
         }
         return metadata
@@ -647,6 +662,3 @@ def create_source_client(source_type: SourceType, config: SourceConfig) -> BaseS
     
     return client_map[source_type](config)
 
-def create_wayfair_reviews_client(config: SourceConfig) -> WayfairReviewsClient:
-    """Factory function specifically for Wayfair reviews client"""
-    return WayfairReviewsClient(config)
