@@ -101,7 +101,7 @@ class BaseReportsDAG(ABC):
             
             return results
         
-        @task(execution_timeout=timedelta(minutes=30))
+        @task(execution_timeout=timedelta(minutes=10))
         def monitor_and_save_reports_task(reports_data: List[Dict[str, Any]]):
             """Monitor report status and save when ready"""
             async def process_single_report(report_data: Dict[str, Any]):
@@ -117,7 +117,7 @@ class BaseReportsDAG(ABC):
                 logging.info(f"Starting to monitor report {report_identifier} with ID: {report_id}")
                 
                 # Monitor status every 10 seconds
-                max_wait_time = 3600  # 1 hour max wait
+                max_wait_time = report_config.get('save_timeout_seconds', 3600)  # 1 hour max wait
                 start_time = time.time()
                 
                 while time.time() - start_time < max_wait_time:

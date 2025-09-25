@@ -70,11 +70,6 @@ dag_types = [
     },
 
 ]
-
-from airflow.decorators import dag, task
-from airflow.utils.dates import days_ago
-
-
 # Create DAGs dynamically using a for loop
 def make_criteo_dag(dag_cfg: dict):
     @dag(

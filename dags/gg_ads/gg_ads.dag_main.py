@@ -130,7 +130,7 @@ for cfg in DAG_CONFIGS:
             reset_dag_run=True,
             poke_interval=5,
             retries=3,
-            retry_delay=timedelta(minutes=30),
+            retry_delay=timedelta(minutes=5),
             sla=timedelta(minutes=5),
             trigger_rule='none_failed',
         )
@@ -141,8 +141,6 @@ for cfg in DAG_CONFIGS:
             wait_for_completion=True,
             reset_dag_run=True,
             poke_interval=5,
-            retries=3,
-            retry_delay=timedelta(minutes=30),
         )
         
         # Create optional DAG triggers FIRST
@@ -156,7 +154,7 @@ for cfg in DAG_CONFIGS:
                     reset_dag_run=True,
                     poke_interval=5,
                     retries=2,
-                    retry_delay=timedelta(minutes=15),
+                    retry_delay=timedelta(minutes=5),
                     sla=timedelta(minutes=10),
                 )
                 optional_dag_triggers[opt_dag['task_id']] = trigger

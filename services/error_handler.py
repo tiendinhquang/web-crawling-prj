@@ -87,7 +87,7 @@ class DefaultErrorClassifier(ErrorClassifier):
                 return ErrorType.AUTHENTICATION_ERROR
             elif response_code == 403:
                 return ErrorType.TOKEN_EXPIRED
-            elif response_code == 429:
+            elif response_code in [429, 408, 498]:
                 return ErrorType.RATE_LIMIT
             elif 400 <= response_code < 500:
                 return ErrorType.API_ERROR

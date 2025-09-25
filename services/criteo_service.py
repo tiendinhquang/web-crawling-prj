@@ -118,79 +118,10 @@ class CriteoService:
             if file.endswith('.json') and file in file_names:
                 processed_campaign_ids.append(file.split('_')[0])
         return processed_campaign_ids
-    def get_processed_line_item_ids_by_date_range(self, process_date, start_date, end_date, base_path, line_item_ids, period):
-        """
-        Get processed line item IDs for date range processing.
-        Returns a set of tuples (line_item_id, date_str) for items that have already been processed.
-        """
-        year, month, day = process_date.year, process_date.month, process_date.day
-        root = f'data/criteo/{year}/{month}/{day}/{base_path}'
-        os.makedirs(root, exist_ok=True)
 
-        processed_line_item_dates = set()
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
 
-        # Read all existing files in the directory for optimization
-        existing_files = set(os.listdir(root))
 
-        for line_item in line_item_ids:
-            line_item_id = line_item['id']
-            for day_offset in range((end_dt - start_dt).days + 1):
-                day_str = (start_dt + timedelta(days=day_offset)).strftime("%Y-%m-%d")
-                expected_file = f"{line_item_id}_{day_str}_{base_path}.json"
-                if expected_file in existing_files:
-                    processed_line_item_dates.add((str(line_item_id), day_str))
 
-        return list(processed_line_item_dates)
-
-    def get_processed_campaign_ids_by_date_range(self, process_date, start_date, end_date, base_path, campaign_ids):
-        year, month, day = process_date.year, process_date.month, process_date.day
-        # year, month, day = 2025, 8, 15
-        root = f'data/criteo/{year}/{month}/{day}/{base_path}'
-        os.makedirs(root, exist_ok=True)
-
-        processed_campaign_ids = set()
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-
-        # Đọc toàn bộ file có trong thư mục để tối ưu
-        existing_files = set(os.listdir(root))
-
-        for campaign_id in campaign_ids:
-            for day_offset in range((end_dt - start_dt).days + 1):
-                day_str = (start_dt + timedelta(days=day_offset)).strftime("%Y-%m-%d")
-                expected_file = f"{campaign_id}_{day_str}_{base_path}_report.json"
-                if expected_file in existing_files:
-                    processed_campaign_ids.add((str(campaign_id), day_str))
-
-        return list(processed_campaign_ids)
-    
-    def get_processed_campaign_dates_by_date_range(self, process_date, start_date, end_date, base_path, campaign_ids):
-        """
-        Get processed campaign+date combinations for date range processing.
-        Returns a set of strings in format "campaign_id_date" for items that have already been processed.
-        """
-        year, month, day = process_date.year, process_date.month, process_date.day
-        root = f'data/criteo/{year}/{month}/{day}/{base_path}'
-        os.makedirs(root, exist_ok=True)
-
-        processed_campaign_dates = set()
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-
-        # Read all existing files in the directory for optimization
-        existing_files = set(os.listdir(root))
-
-        for campaign_id in campaign_ids:
-            for day_offset in range((end_dt - start_dt).days + 1):
-                day_str = (start_dt + timedelta(days=day_offset)).strftime("%Y-%m-%d")
-                expected_file = f"{campaign_id}_{day_str}_{base_path}_report.json"
-                if expected_file in existing_files:
-                    # Add campaign+date combination to processed set
-                    processed_campaign_dates.add(f"{campaign_id}_{day_str}")
-
-        return processed_campaign_dates
     async def _fetch_new_token(self) -> Optional[str]:
         """Fetch new bearer token from the API endpoint"""
         try:
@@ -315,7 +246,8 @@ class CriteoService:
             method='POST',
             payload=json_data,
             params=params,
-            semaphore=semaphore
+            semaphore=semaphore,
+            on_error=self.refresh_token_and_update_headers
         )
         if response['status'] == 'ERROR':
             raise Exception(f"Report creation failed. Error: {response['error']}")
@@ -360,7 +292,8 @@ class CriteoService:
             url=url,
             method='POST',
             params=params,
-            semaphore=semaphore
+            semaphore=semaphore,
+            on_error=self.refresh_token_and_update_headers
         )
         
         return {
@@ -425,22 +358,27 @@ class CriteoService:
             url=url,
             method='GET',
             params=params,
-            semaphore=semaphore
+            semaphore=semaphore,
+            on_error=self.refresh_token_and_update_headers
         )
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'w', encoding='utf-8') as f:
             f.write(response['text'])
         logging.info(f"Report data saved to local. Path: {path}")
     
-# if __name__ == "__main__":
-#     import asyncio
-#     criteo_service = CriteoService()
-#     # campaign_ids = criteo_service.get_campaign_ids()
-#     # asyncio.run(criteo_service.refresh_token_and_update_headers())
+if __name__ == "__main__":
+    import asyncio
+    criteo_service = CriteoService()
+    async def main():
+        criteo_service.get_report_status()
 
-#     dimensions = "campaign_name,date,campaign_id"
-#     metrics = "impressions,clicks,ctr,win_rate,total_spend,cpc,unique_visitors,frequency,assisted_units,assisted_sales,attributed_units,attributed_sales,roas,discarded_product_clicks,new_to_global_brand_attributed_sales"
+    asyncio.run(main())
+    # campaign_ids = criteo_service.get_campaign_ids()
+    
 
-#     asyncio.run(criteo_service.create_report_by_date_range(report_type='campaign', start_date=datetime.now() - timedelta(days=14), end_date=datetime.now(), dimensions=dimensions, metrics=metrics))
-#     line_item_ids = criteo_service.get_line_item_ids()
-#     print(asyncio.run(criteo_service.get_processed_line_item_ids(line_item_ids=line_item_ids, process_date=datetime.now(), base_path='bid_multiplier')))
+    # dimensions = "campaign_name,date,campaign_id"
+    # metrics = "impressions,clicks,ctr,win_rate,total_spend,cpc,unique_visitors,frequency,assisted_units,assisted_sales,attributed_units,attributed_sales,roas,discarded_product_clicks,new_to_global_brand_attributed_sales"
+
+    # asyncio.run(criteo_service.create_report_by_date_range(report_type='campaign', start_date=datetime.now() - timedelta(days=14), end_date=datetime.now(), dimensions=dimensions, metrics=metrics))
+    # line_item_ids = criteo_service.get_line_item_ids()
+    # print(asyncio.run(criteo_service.get_processed_line_item_ids(line_item_ids=line_item_ids, process_date=datetime.now(), base_path='bid_multiplier')))

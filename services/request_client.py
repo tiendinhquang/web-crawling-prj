@@ -61,7 +61,7 @@ class SourceConfig:
     headers_name: str
     cookies_name: str
     api_type: Optional[str] = None  
-    timeout_seconds: int = 30
+    timeout_seconds: int = 60
     api_hash: Optional[str] = None
     auth_token: Optional[str] = None
     rate_limit_per_second: int = 2
