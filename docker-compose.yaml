@@ -75,6 +75,7 @@ x-airflow-common:
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
     USERNAME: ${USERNAME:-}
     PASSWORD: ${PASSWORD:-}
+    REDIS_URL: ${REDIS_URL:-}
     PYTHONPATH: '/opt/airflow/'
     # The following line can be used to set a custom config file, stored in the local config folder
     # If you want to use it, outcomment it and replace airflow.cfg with the name of your config file
@@ -278,28 +279,6 @@ services:
       - bash
       - -c
       - airflow
-  # minio:
-  #   image: minio/minio:latest
-  #   container_name: minio
-  #   ports:
-  #     - "9000:9000"     # Console / API
-  #     - "9001:9001"     # Web UI (Admin Console)
-  #   environment:
-  #     MINIO_ROOT_USER: admin
-  #     MINIO_ROOT_PASSWORD: atlasadmin
-  #   command: server /data --console-address ":9001"
-  #   volumes:
-  #     - minio-data:/data
-  #   restart: no
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-
-  # You can enable flower by adding "--profile flower" option e.g. docker-compose --profile flower up
-  # or by explicitly targeted on the command line e.g. docker-compose up flower.
-  # See: https://docs.docker.com/compose/profiles/
   flower:
     <<: *airflow-common
     command: celery flower

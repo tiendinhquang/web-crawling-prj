@@ -74,7 +74,7 @@ class SourceConfig:
     num_proxies: int = 30
     base_path: str = ''
     from_src: str = ''
-
+    on_error: Optional[Callable[[ErrorContext], None]] = None
 
 
 class BaseSourceClient(ABC):
@@ -110,11 +110,15 @@ class BaseSourceClient(ABC):
     
     def get_cookies(self) -> Dict[str, str]:
         """Get cookies using existing config manager"""
-        return get_cookie_config(cookie_name=self.config.cookies_name)
+        try:
+            return get_cookie_config(name=self.config.cookies_name)
+        except Exception as e:
+            logging.warning(f"{e}")
+            return {}
     
     def get_auth_headers(self) -> Dict[str, str]:
         """Get authentication headers if needed"""
-        headers = get_header_config(header_name=self.config.headers_name)
+        headers = get_header_config(name=self.config.headers_name)
         if self.config.auth_token:
             headers['Authorization'] = f'Bearer {self.config.auth_token}'
         return headers
@@ -244,7 +248,6 @@ class BaseSourceClient(ABC):
         items: list,
         proxies: Optional[list] = None,
         semaphore: Optional[asyncio.Semaphore] = None,
-        handler: Optional[Callable] = None,
         **kwargs
     ) -> list:
         """
@@ -259,8 +262,7 @@ class BaseSourceClient(ABC):
         if semaphore is None:
             semaphore = asyncio.Semaphore(self.config.max_concurrent_requests)
         # default handler
-        if handler is None:
-            handler = self.make_request_with_retry
+      
         tasks = []
         proxy_idx = 0
         
@@ -280,9 +282,10 @@ class BaseSourceClient(ABC):
             method = item.get('method', 'POST')
             
             tasks.append(
-                handler(
+                self.make_request_with_retry(
                     proxy=proxy,
                     semaphore=semaphore,
+                    on_error=self.config.on_error,
                     **item
                 )
             )
@@ -292,7 +295,7 @@ class BaseSourceClient(ABC):
 
 class WayfairClient(BaseSourceClient):
     """Wayfair-specific client implementation"""
-    
+
     def parse_response(self, response: httpx.Response, **kwargs) -> Any:
         """Parse Wayfair response"""
         try:

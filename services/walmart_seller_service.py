@@ -8,11 +8,11 @@ from services.request_client import SourceConfig, create_source_client, SourceTy
 import yaml 
 import logging
 from utils.common.config_manager import get_cookie_config, update_cookie_config
-from services.cookie_refresh_service import refresh_walmart_seller_cookies
+from services.credential_refresh_service import refresh_walmart_seller_cookies,refresh_headers
 import requests
 from utils.s3 import S3Hook
 import os 
-from services.header_refresh_serivce import refresh_headers
+
 from config.walmart_seller_dag_configs import DEFAULT_CONFIGS
 with open('config/credentials.yaml', 'r') as f:
     credentials = yaml.safe_load(f)
@@ -23,7 +23,7 @@ class WalmartSellerService:
         self.client = create_source_client(SourceType.WALMART, DEFAULT_CONFIGS['source_config'])
         self.base_api_url = 'https://seller.walmart.com/aurora/v1/reports/reportRequests'
         self.cookies_name = "walmart_seller"
-        self.credentials_url = 'http://172.17.2.54:8000/api/v1/walmart/credentials?vendor=walmart_seller'
+        self.create_job_url = 'http://172.17.2.54:8000/api/v1/walmart/crawl'
 
 
 
@@ -32,7 +32,7 @@ class WalmartSellerService:
         """Main method to refresh cookies and update configuration using centralized service"""
         return await refresh_walmart_seller_cookies()
     async def on_error_callback(self):
-        await refresh_headers(['walmart_seller'], self.credentials_url)
+        await refresh_headers(['walmart_seller'], self.create_job_url)
         await refresh_walmart_seller_cookies()
         return True
     

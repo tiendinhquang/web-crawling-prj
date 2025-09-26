@@ -6,21 +6,18 @@ from services.request_client import SourceConfig, create_source_client, SourceTy
 import yaml 
 import logging
 from utils.common.config_manager import get_cookie_config, update_cookie_config, get_header_config
-from services.cookie_refresh_service import refresh_lowes_vendor_cookies
+from services.credential_refresh_service import refresh_lowes_vendor_cookies
 import requests
 from utils.s3 import S3Hook
 import os 
 from config.lowes_vendor_dag_configs import LOWES_RTM_CONFIG
-with open('config/credentials.yaml', 'r') as f:
-    credentials = yaml.safe_load(f)
-TOKEN = credentials['token']
+
 
 class LowesVendorService:
     def __init__(self):
         self.client = create_source_client(SourceType.LOWES, LOWES_RTM_CONFIG)
-        self.cookies_url = 'http://172.17.2.54:8000/api/v1/lowes/cookies'
+        self.create_job_url = 'http://172.17.1.205:8000/api/v1/lowes/crawl'
         self.base_api_url = 'https://vendorgateway.lowes.com/vendorinquiry/vendorinquiry-api'
-        self.cookies_name = 'lowes_vendor'
 
             
     async def refresh_cookies_and_update_config(self) -> bool:
@@ -36,7 +33,7 @@ class LowesVendorService:
             'deductionStatus': '4',
         }
         semaphore = asyncio.Semaphore(1)
-        response, metadata = await self.client.make_request_with_retry(url, method='POST', payload=payload, semaphore=semaphore)
+        response, metadata = await self.client.make_request_with_retry(url, method='POST', payload=payload, semaphore=semaphore, on_error=self.refresh_cookies_and_update_config)
         deductions = response["data"]
         logging.info(f"Number of deductions Processed: {len(deductions)}")
         return deductions
@@ -82,8 +79,9 @@ if __name__ == "__main__":
         start_date = datetime(2025, 6, 22)
         end_date = datetime.now()
         # await lowes_vendor_service.refresh_cookies_and_update_config()
-        deductions = await lowes_vendor_service.get_rtm_deductions_list(start_date, end_date)
+        # deductions = await lowes_vendor_service.get_rtm_deductions_list(start_date, end_date)
         # print(deductions)
+        await lowes_vendor_service.refresh_cookies_and_update_config()
     asyncio.run(main())
     
     # json_data = {'vendorId': 89026, 'vendorName': 'ATLAS INTERNATIONAL INC       ', 'updatedOn': '2025-08-20', 'updatedBy': 'DTCB054 ', 'invoiceNumber': None, 'storeNumber': 0, 'source': 'RTM', 'status': None, 'deductionStatus': None, 'trackingNumber': 'LOWRTM016959961', 'deductionNumber': 'DM9040DA', 'deductionDate': '2025-08-20', 'sellingLocation': None, 'deductionAmount': -3308.25, 'approvedAmount': 0, 'debitBackupSent': None, 'dmrlLowesComments': None, 'dmrlPONumber': None}

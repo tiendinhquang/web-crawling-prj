@@ -7,7 +7,7 @@ import pandas as pd
 import logging  
 from typing import Optional
 import requests
-from utils.common.config_manager import get_header_config, update_header_config
+from services.credential_refresh_service import refresh_headers
 import yaml
 from datetime import datetime, timedelta
 import os
@@ -21,8 +21,8 @@ TOKEN = cfg['token']
 class CriteoService:
     def __init__(self):
         self.db_engine = DBConnection().engine
-        self.headers_name = "criteo_capout"
-        self.token_url = "http://172.17.2.54:8000/api/v1/criteo/bearer-token"
+        self.headers_name = "headers:criteo"
+        self.create_job_url = "http://172.17.1.205:8000/api/v1/criteo/crawl"
         self.base_api_url = "https://rm-reporting.criteo.net/dashboards/rm-dsp-analytics-open-auction-flexible/api"
         self.client = create_source_client(SourceType.CRITEO, CRITEO_CAPOUT_CONFIG)
 
@@ -119,90 +119,8 @@ class CriteoService:
                 processed_campaign_ids.append(file.split('_')[0])
         return processed_campaign_ids
 
-
-
-
-    async def _fetch_new_token(self) -> Optional[str]:
-        """Fetch new bearer token from the API endpoint"""
-        try:
-            headers = {
-                'accept': 'application/json',
-                'Authorization': f'Bearer {TOKEN}'
-            }
-            
-            # Create a semaphore for the request
-            semaphore = asyncio.Semaphore(1)
-            
-            logging.info(f"Fetching new token from: {self.token_url}")
-            response, metadata = await self.client.make_request_with_retry(
-                self.token_url, 
-                method='GET', 
-                headers=headers,
-                semaphore=semaphore
-            )
-            
-            if metadata['response_status_code'] == 200:
-                data = response
-                if data.get('status') == 'success' and 'token' in data:
-                    new_token = data['token']
-                    logging.info("Successfully fetched new bearer token")
-                    return new_token
-                else:
-                    logging.error(f"Invalid response format: {data}")
-                    return None
-            else:
-                logging.error(f"Failed to fetch token. Status: {metadata['response_status_code']}, Response: {response}")
-                return None
-                
-        except Exception as e:
-            raise e
-    
-    async def _update_headers_with_new_token(self, new_token: str) -> bool:
-        """Update header configuration with new bearer token"""
-        try:
-            current_headers = get_header_config(self.headers_name)
-            
-            # Update the authorization header with the new token
-            updated_headers = current_headers.copy()
-            updated_headers['authorization'] = new_token
-            
-            # Update the header configuration
-            success = update_header_config(self.headers_name, updated_headers)
-            
-            if success:
-                logging.info("Successfully updated header configuration with new token")
-            else:
-                logging.error("Failed to update header configuration")
-                
-            return success
-            
-        except Exception as e:
-            raise e
-    
-    async def refresh_token_and_update_headers(self) -> bool:
-        """Main method to refresh token and update headers"""
-        try:
-            logging.info("Starting token refresh process...")
-            
-            # Fetch new token
-            new_token = await self._fetch_new_token()
-            if not new_token:
-                logging.error("Failed to fetch new token")
-                return False
-            
-            # Update headers with new token
-            success = await self._update_headers_with_new_token(new_token)
-            
-            if success:
-                logging.info("Token refresh and header update completed successfully")
-            else:
-                logging.error("Token refresh completed but header update failed")
-                
-            return success
-            
-        except Exception as e:
-            raise e('Error in token refresh process')
-            
+    async def refresh_token_and_update_headers(self):
+        await refresh_headers([self.headers_name], self.create_job_url)
 
     async def create_report_by_date_range(self,report_type, start_date= None, end_date= None,dimensions= None, metrics= None, campaign_ids=None):
         start_date_str = start_date.strftime("%Y-%m-%d")
@@ -370,7 +288,7 @@ if __name__ == "__main__":
     import asyncio
     criteo_service = CriteoService()
     async def main():
-        criteo_service.get_report_status()
+        await criteo_service.refresh_token_and_update_headers()
 
     asyncio.run(main())
     # campaign_ids = criteo_service.get_campaign_ids()

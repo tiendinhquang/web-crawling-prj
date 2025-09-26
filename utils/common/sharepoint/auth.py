@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import json
 import time
 import os
+from utils.cache import CacheManager
 
 # Load cấu hình từ YAML
 with open('config/azure.yaml', 'r') as f:
@@ -14,7 +15,8 @@ CLIENT_SECRET = data['CLIENT_SECRET']
 TENANT_ID = data['DIRECTORY_ID']
 SHAREPOINT_HOST = 'atlasintl.sharepoint.com'
 
-AUTH_CACHE_PATH = 'config/.azure_token_cache.json'
+# Redis cache key for Azure token
+AUTH_CACHE_KEY = 'azure_token_cache'
 
 # Base class sử dụng abstract method
 class BaseAzureAuth(ABC):
@@ -39,14 +41,14 @@ class BaseAzureAuth(ABC):
 class AzureAuth(BaseAzureAuth):
     def __init__(self):
         super().__init__()
+        self.cache = CacheManager()
 
     def _is_token_expired(self):
-        if not os.path.exists(AUTH_CACHE_PATH):
-            return True
         try:
-            with open(AUTH_CACHE_PATH, 'r') as f:
-                data = json.load(f)
-            return time.time() >= data.get('expires_on', 0)
+            cached_data = self.cache.get(AUTH_CACHE_KEY)
+            if not cached_data:
+                return True
+            return time.time() >= cached_data.get('expires_on', 0)
         except Exception as e:
             print(f"[Token Cache Error] {e}")
             return True
@@ -57,14 +59,10 @@ class AzureAuth(BaseAzureAuth):
             if "access_token" not in result:
                 raise Exception(f"Failed to acquire token: {result}")
             result['expires_on'] = time.time() + result['expires_in']
-            with open(AUTH_CACHE_PATH, 'w') as f:
-                json.dump(result, f, indent=4)
+            # Store in Redis with TTL slightly less than actual expiration
+            ttl = int(result['expires_in'] - 60)  # 60 seconds buffer
+            self.cache.set(AUTH_CACHE_KEY, result, ttl=ttl)
         else:
-            with open(AUTH_CACHE_PATH, 'r') as f:
-                result = json.load(f)
+            result = self.cache.get(AUTH_CACHE_KEY)
         return result
 
-# Gọi thử để in access token
-# if __name__ == "__main__":        
-#     auth = AzureAuth()
-#     print(auth.get_access_token()['access_token'])

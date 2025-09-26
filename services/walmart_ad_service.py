@@ -7,7 +7,7 @@ from services.request_client import SourceConfig, create_source_client, SourceTy
 import yaml 
 import logging
 from utils.common.config_manager import get_cookie_config, update_cookie_config
-from services.cookie_refresh_service import refresh_walmart_ad_cookies
+from services.credential_refresh_service import refresh_walmart_ad_cookies,refresh_headers
 import requests
 from utils.s3 import S3Hook
 import os 
@@ -18,24 +18,11 @@ TOKEN = credentials['token']
 class WalmartAdService:
     def __init__(self):
         self.client = create_source_client(SourceType.WALMART, DEFAULT_CONFIGS['source_config'])
-        self.cookies_url = 'http://172.17.2.54:8000/api/v1/walmart/cookies'
+        self.create_job_url = 'http://172.17.2.54:8000/api/v1/walmart/crawl'
         self.base_api_url = 'https://advertising.walmart.com/sp/api/campaigns'
         self.cookies_name = "walmart_ad"
 
 
-    async def get_cookies(self):
-        # Create a semaphore for the request
-        semaphore = asyncio.Semaphore(1)
-        cookies_response, metadata = await self.client.make_request_with_retry(
-            self.cookies_url, 
-            method='GET', 
-            semaphore=semaphore,
-            headers={
-                'accept': 'application/json',
-                'authorization': f'Bearer {TOKEN}',
-            }
-        )
-        return cookies_response['cookies']
     
     async def refresh_cookies_and_update_config(self) -> bool:
         """Main method to refresh cookies and update configuration using centralized service"""
