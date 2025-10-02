@@ -368,26 +368,3 @@ class GGMerchantsService:
             logging.error(f"Failed to save report to S3: {e}")
             raise
 
-if __name__ == "__main__":
-    import asyncio
-    gg_merchants_service = GGMerchantsService()
-    
-    async def main():
-        start_date = datetime(2025, 8, 22)
-        end_date = datetime.now()
-        
-        # Example usage:
-        # await gg_merchants_service.refresh_cookies_and_update_config()
-        # report_id = await gg_merchants_service.create_report('sku_visibility', start_date, end_date)
-        # status = await gg_merchants_service.get_report_status(report_id)
-        # data = await gg_merchants_service.get_report_data(report_id)
-        
-        # Test with existing report ID
-        # test_id = '1757925564382527961'
-        # status = await gg_merchants_service.get_report_status(test_id)
-        # print(f"Report status: {status}")
-
-        await gg_merchants_service.on_error_callback()
-        
-    asyncio.run(main())
-    

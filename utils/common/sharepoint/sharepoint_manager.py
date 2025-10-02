@@ -8,6 +8,7 @@ import httpx
 import os
 from pathlib import Path
 import asyncio
+import pandas as pd
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -748,7 +749,13 @@ class ExcelOnlineLoader(BaseExcelOnlineLoader):
         return super()._get_workbook_session_id(site_id, item_id)
 
     # Public API ----------------------------------------------------
-
+    def convert_range_to_df(self, site_id: str, drive_name: str, file_path: str, sheet_name: str, range_address: str) -> pd.DataFrame:
+        data = self.get_used_range(site_id, drive_name, file_path, sheet_name, range_address)
+        values = data['values']
+        headers = values[0]
+        df = pd.DataFrame(values[1:], columns=headers)
+        return df
+    
     def get_used_range(
         self,
         site_id: str,
@@ -877,35 +884,6 @@ class ExcelOnlineLoader(BaseExcelOnlineLoader):
             logging.exception("Unexpected error updating cell")
             raise SharePointError(f"Unexpected error updating cell: {e}")
 
-
-if __name__ == '__main__':
-    import json
-    try:
-        sharepoint_manager = SharepointManager()
-        excel_online_loader = ExcelOnlineLoader()
-        
-        site_id = sharepoint_manager.get_site_id('DE')
-        # print(site_id)
-        # drives = sharepoint_manager.get_all_drives_in_site(site_id)
-        # drive_id = sharepoint_manager.get_drive_id(site_id, 'Documents')
-        # range_address = None
-        
-        # response = excel_online_loader.get_used_range(site_id, 'Documents', 'Web Crawling/Walmart/Seller Center/buybox_report.xlsx', 'buybox_report', range_address=None)
-        # column_to_update = excel_online_loader.col_index_to_name(response['column_count'] + 1)
-        
-        value = { "values": [ ["ID", "Name", "Age"], [1, "Alice", 25] ] }
-
-        excel_online_loader.update_cell(site_id, 'Documents', 'Web Crawling/Walmart/Seller Center/buybox_report.xlsx', 'sheet2', 'A1:C2', value)
-        pass
-       
-
-
-    except SharePointError as e:
-        logging.error(f"SharePoint operation failed: {e}")
-        print(f"Error: {e}")
-    except Exception as e:
-        logging.error(f"Unexpected error: {e}")
-        print(f"Unexpected error: {e}")
 
  
 

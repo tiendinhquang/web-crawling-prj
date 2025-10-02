@@ -253,7 +253,3 @@ class WayfairService:
     async def on_error_callback(self, page_type: str = "wayfair_pdp", new_headers: List[str] = ['headers:wayfair_product_info']):
         await refresh_headers(new_headers, self.create_job_url, payload={"force_new_session": False, "page_type": page_type})
         await refresh_wayfair_cookies()
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(WayfairService().on_error_callback())

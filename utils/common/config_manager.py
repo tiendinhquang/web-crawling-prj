@@ -122,5 +122,3 @@ def get_mapping_config(table_code: Optional[str] = None) -> Optional[Dict[str, A
         raise ConfigError(f"Unexpected error getting mapping config for table '{table_code}': {e}")
 
 
-if __name__ == "__main__":
-    print(get_mapping_config("wayfair.product_skus"))
