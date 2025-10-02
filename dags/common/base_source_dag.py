@@ -8,7 +8,7 @@ for maximum code reuse and consistency.
 import asyncio
 import logging
 import time
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Callable
 from abc import ABC, abstractmethod
 from airflow.decorators import task, dag
 from airflow.utils.dates import days_ago
@@ -55,6 +55,12 @@ class BaseSourceDAG(ABC):
     def chunk_list(self, items: List[Any], chunk_size: int) -> List[List[Any]]:
         """Split items into chunks"""
         return [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
+
+    def process_batch(self, items: List[Any], proxies: List[str]):
+        return asyncio.run(self.source_client.process_batch(
+            items=items,
+            proxies=proxies
+        ))
     
     @abstractmethod
     def build_file_name(self, metadata):
@@ -137,11 +143,11 @@ class BaseSourceDAG(ABC):
                         # Process batch using enhanced client
                         # Let the request client create its own semaphore to avoid event loop binding issues
                         
-                        batch_results = asyncio.run(self.source_client.process_batch(
+                        batch_results = self.process_batch(
                             items=batch,
                             proxies=proxies
-                        ))
-                        
+                        )
+                            
                         # Track results
                         successful = [r for r in batch_results if r[1] is not None]
                         failed = [r[0] for r in batch_results if r[1] is None]

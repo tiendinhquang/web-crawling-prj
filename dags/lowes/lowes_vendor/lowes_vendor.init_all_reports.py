@@ -12,130 +12,41 @@ import urllib.parse
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import asyncio
-class PayloadBuilder:
-    def __init__(self, api_type: str):
-        self.api_type = api_type
-    def build_payload(self, start_date, end_date):
-        return {
-            'vendorId': '89026',
-            'checkFromDate': start_date.strftime('%Y-%m-%d'),
-            'checkToDate': end_date.strftime('%Y-%m-%d'),
-            'company': 'AAA',
-        }
-
-class FileNameBuilder:
-    def __init__(self, source_config):
-        self.source_config = source_config
-        
-    def build_file_name(self, metadata):
-        """Build file name based on API type and metadata"""
-        if self.source_config.api_type == 'rtm':
-            return f"{metadata.get('tracking_number')}_{metadata.get('business_date')}.json"
 
 
-class LowesItemsBuilder:
-    def __init__(self, source_config):
-        self.source_config = source_config
-        self.payload_builder = PayloadBuilder(self.source_config.api_type)
 
-
-    def _process_all_mode(self, start_date, end_date):
-        """Process items for 'all' mode based on API type"""
-        logging.info(f"Processing all mode for API type: {self.source_config.api_type}")
-        if self.source_config.api_type == 'rtm':
-            lowes_vendor_service = LowesVendorService()
-            deductions = asyncio.run(lowes_vendor_service.get_rtm_deductions_list(start_date, end_date))
-            logging.info(f"Generated all mode item: {deductions}")
-            return [
-                {
-                    'url': self.source_config.api_url,
-                    'method': 'POST',
-                    'payload': deduction,
-                    'params': None,
-                    'business_date': end_date.strftime("%Y%m%d"),
-                    'tracking_number': deduction.get('trackingNumber')
-                } for deduction in deductions
-            ]
-            
-        else:
-            logging.warning(f"Unsupported API type for all mode: {self.source_config.api_type}")
-            return None
-
-    
-    def _process_failed_mode(self, start_date, end_date):
-        """Process items for 'failed' mode based on API type"""
-        logging.info(f"Processing failed mode for API type: {self.source_config.api_type}")
-        if self.source_config.api_type == 'rtm':
-            lowes_vendor_service = LowesVendorService()
-            tracking_numbers = lowes_vendor_service.get_process_rtm_deductions(datetime.now())
-            deductions = asyncio.run(lowes_vendor_service.get_rtm_deductions_list(start_date, end_date))
-            logging.info(f"Generated failed mode item: {deductions}")
-            return [
-                {
-                    'url': self.source_config.api_url,
-                    'method': 'POST',
-                    'payload': deduction,
-                    'params': None,
-                    'business_date': end_date.strftime("%Y%m%d"),
-                    'tracking_number': deduction.get('trackingNumber')
-                } for deduction in deductions if deduction.get('trackingNumber') not in tracking_numbers
-            ]
-        else:
-            logging.warning(f"Unsupported API type for failed mode: {self.source_config.api_type}")
-            return None
-            
-
-
-    def get_items_to_process(self, mode):
-        """Get items to process based on mode"""
-        logging.info(f"Getting items to process for mode: {mode}")
-        if mode not in ['all', 'failed']:
-            raise ValueError(f"Unsupported mode: {mode}. Supported modes: 'all', 'failed'")
-        end_date = datetime.now(ZoneInfo("America/Los_Angeles"))
-        start_date = end_date - timedelta(days=14)
-        logging.info(f"Processing date range: {start_date} to {end_date}")
-        
-        if mode == 'all':
-            result = self._process_all_mode(start_date, end_date)
-            logging.info(f"All mode result: {result}")
-            return result
-        elif mode == 'failed':
-            result = self._process_failed_mode(start_date, end_date)
-            logging.info(f"Failed mode result: {result}")
-            return result
-        
 
         
-        
-
-        
-
-
-class LowesGetReport(BaseSourceDAG):
+class LowesGetRTMDeductionDetails(BaseSourceDAG):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.lowes_service = LowesVendorService()
-        self.payload_builder = PayloadBuilder(self.source_config.api_type)
-        self.items_builder = LowesItemsBuilder(self.source_config)
-        self.file_name_builder = FileNameBuilder(self.source_config)
-        
+        self.path = f'data/lowes/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/rtm'
+        os.makedirs(self.path, exist_ok=True)
+        self.lowes_vendor_service = LowesVendorService()
     def refresh_token(self):
-        """Refresh Lowes Vendor bearer token and update header configuration"""
-        try:
-            logging.info("🔄 Starting Lowes token refresh...")
-            success = self.lowes_service.refresh_cookies_and_update_config()
-            
-            if success:
-                logging.info("✅ Lowes Vendor token refresh completed successfully")
-            else:
-                logging.error("❌ Lowes Vendor token refresh failed")
-                
-            return success
-            
-        except Exception as e:
-            logging.error(f"❌ Error during Lowes Vendor token refresh: {e}")
-            return False
+        return asyncio.run(self.lowes_vendor_service.refresh_cookies_and_update_config())
+    def get_items_to_process(self, mode):
+        deductions = asyncio.run(self.lowes_vendor_service.get_rtm_deductions_list(datetime.now() - timedelta(days=14), datetime.now()))
+        if mode == 'all':
+            return [{'url': self.source_config.api_url,
+                 'method': 'POST',
+                 'payload': deduction,
+                 'params': None,
+                 'business_date': datetime.now().strftime("%Y%m%d"),
+                 'tracking_number': deduction.get('trackingNumber')} 
+                for deduction in deductions]
         
+        if mode == 'failed':
+            tracking_numbers = self.lowes_vendor_service.get_process_rtm_deductions(datetime.now())
+            return [{'url': self.source_config.api_url,
+                     'method': 'POST',
+                     'payload': deduction,
+                     'params': None,
+                     'business_date': datetime.now().strftime("%Y%m%d"),
+                     'tracking_number': deduction.get('trackingNumber')}
+                    for deduction in deductions if deduction.get('trackingNumber') not in tracking_numbers]
+        else:
+            raise ValueError(f"Unsupported mode: {mode}")
     def process_rtm_deduction_details(self, process_date):
         import pandas as pd
         year,month,day = process_date.year, process_date.month, process_date.day
@@ -157,6 +68,7 @@ class LowesGetReport(BaseSourceDAG):
                 results.extend(merged_records)
         
         return pd.DataFrame(results)
+    
     def save_to_s3(self):
         from utils.s3 import S3Hook
         process_date = datetime.now()
@@ -177,15 +89,14 @@ class LowesGetReport(BaseSourceDAG):
             logging.warning(f"Unsupported API type for save to s3: {self.source_config.api_type}")
             return False
         return True
-    def get_items_to_process(self, mode):
-        """Get items to process based on mode"""
-        if mode not in ['all', 'failed']:
-            raise ValueError(f"Unsupported mode: {mode}. Supported modes: 'all', 'failed'")
-            
-        return self.items_builder.get_items_to_process(mode)
-        
     def build_file_name(self, metadata):
-        return self.file_name_builder.build_file_name(metadata)
+        file_name = f"{metadata.get('tracking_number')}_{metadata.get('business_date')}.json"
+        return file_name
+   
+        
+
+
+
 
 from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
@@ -194,7 +105,7 @@ def create_dag_report_instance(config: SourceConfig):
     """Create DAG instance with the given configuration"""
     logging.info(f"🔄 Creating DAG instance with config: {config}")
     source_client = create_source_client(SourceType.LOWES, config)
-    dag_instance = LowesGetReport(config, source_client)
+    dag_instance = LowesGetRTMDeductionDetails(config, source_client)
     
     @task
     def refresh_lowes_token():

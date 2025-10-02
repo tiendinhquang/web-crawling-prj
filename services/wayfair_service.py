@@ -5,9 +5,28 @@ from datetime import datetime
 
 import logging
 from typing import List, Dict, Any, Union
+import yaml 
+from services.request_client import create_source_client, SourceType
+from utils.common.config_manager import update_header_config, update_cookie_config
+from services.request_client import SourceConfig
+from services.credential_refresh_service import refresh_wayfair_cookies,refresh_headers
+
 
 logging.basicConfig(level=logging.DEBUG)
 class WayfairService:
+    def __init__(self):
+        self.create_job_url = "http://172.17.1.205:8000/api/v1/wayfair/crawl"
+        self.client = create_source_client(SourceType.WAYFAIR, SourceConfig(
+            source_type=SourceType.WAYFAIR,
+            api_url='https://www.wayfair.com/a/product/get_joined_product',
+            api_hash=None,
+            headers_name='headers:wayfair_product_detail',
+            cookies_name='cookies:wayfair_pdp',
+            from_src = 'wayfair',   
+
+        ))
+
+        
     def get_product_variations(
         self,
         path: str = None, 
@@ -34,8 +53,6 @@ class WayfairService:
             - Invalid or unreadable files are logged and skipped.
         """
 
-        if path is None:
-            path = get_latest_folder(base_dir='data/wayfair') + '/product_detail/product_detail_page/'
         
         variations = []
         skus = set()  # Use set for automatic deduplication
@@ -105,8 +122,7 @@ class WayfairService:
             - Skips empty or malformed filenames gracefully.
         """
 
-        if path is None:
-            path = get_latest_folder(base_dir='data/wayfair') + '/product_detail/product_dimensions/'
+
         
         variations = []
         skus = set()
@@ -234,8 +250,10 @@ class WayfairService:
 
         logging.info(f"❌ Number of failed variations: {len(failed_variations)}")
         return failed_variations
+    async def on_error_callback(self, page_type: str = "wayfair_pdp", new_headers: List[str] = ['headers:wayfair_product_info']):
+        await refresh_headers(new_headers, self.create_job_url, payload={"force_new_session": False, "page_type": page_type})
+        await refresh_wayfair_cookies()
 
-
-
-
-
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(WayfairService().on_error_callback())

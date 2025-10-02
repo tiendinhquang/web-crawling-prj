@@ -10,7 +10,7 @@ from services.notification_handler import send_failure_notification
 from datetime import datetime
 import logging
 from zoneinfo import ZoneInfo
-from config.criteo_dag_configs import CRITEO_CAPOUT_CONFIG, SEARCH_TERM_CONFIG, PLACEMENT_CONFIG, BID_MULTIPLIER_CONFIG
+
 table_codes = ['lowes.sponsored_product_capout', 'lowes.search_term_report', 'lowes.placement_report', 'lowes.campaigns_report', 'lowes.line_items_report', 'lowes.attributed_transaction_report']
 
 

@@ -4,8 +4,9 @@ psycopg2-binary
 pyyaml
 seleniumbase
 httpx==0.27.2
-pyautogui   
 sqlalchemy
 dotenv
 boto3
 mypy_boto3_s3
+redis
+msal

@@ -5,7 +5,7 @@ from services.notification_handler import send_failure_notification
 import json
 import os
 import logging  
-from config.criteo_dag_configs import CRITEO_CAPOUT_CONFIG, SEARCH_TERM_CONFIG, PLACEMENT_CONFIG, BID_MULTIPLIER_CONFIG, CAMPAIGN_CONFIG, LINE_ITEM_CONFIG
+from config.criteo_dag_configs import CRITEO_CAPOUT_CONFIG,BID_MULTIPLIER_CONFIG
 from datetime import datetime, timedelta
 import asyncio
 
@@ -70,11 +70,6 @@ dag_types = [
     },
 
 ]
-
-from airflow.decorators import dag, task
-from airflow.utils.dates import days_ago
-
-
 # Create DAGs dynamically using a for loop
 def make_criteo_dag(dag_cfg: dict):
     @dag(
