@@ -284,19 +284,3 @@ class CriteoService:
             f.write(response['text'])
         logging.info(f"Report data saved to local. Path: {path}")
     
-if __name__ == "__main__":
-    import asyncio
-    criteo_service = CriteoService()
-    async def main():
-        await criteo_service.refresh_token_and_update_headers()
-
-    asyncio.run(main())
-    # campaign_ids = criteo_service.get_campaign_ids()
-    
-
-    # dimensions = "campaign_name,date,campaign_id"
-    # metrics = "impressions,clicks,ctr,win_rate,total_spend,cpc,unique_visitors,frequency,assisted_units,assisted_sales,attributed_units,attributed_sales,roas,discarded_product_clicks,new_to_global_brand_attributed_sales"
-
-    # asyncio.run(criteo_service.create_report_by_date_range(report_type='campaign', start_date=datetime.now() - timedelta(days=14), end_date=datetime.now(), dimensions=dimensions, metrics=metrics))
-    # line_item_ids = criteo_service.get_line_item_ids()
-    # print(asyncio.run(criteo_service.get_processed_line_item_ids(line_item_ids=line_item_ids, process_date=datetime.now(), base_path='bid_multiplier')))

@@ -30,10 +30,7 @@ class WayfairGetProductDetail(BaseSourceDAG):
         range_address = 'F:G'
         
         def get_all_items():
-            data = excel_online_loader.get_used_range(site_id, drive_name, file_path, sheet_name, range_address)
-            values = data['text']
-            headers = values[0]
-            df = pd.DataFrame(values[1:], columns=headers)
+            df = excel_online_loader.convert_range_to_df(site_id, drive_name, file_path, sheet_name, range_address)
             df.rename(columns={'Competitor Relevant Product ID on Platform': 'sku', 'Competitor Relevant Product Link': 'url'}, inplace=True)
             df = df.drop_duplicates(subset=['sku'])
             df = df[['sku', 'url']]
@@ -87,8 +84,9 @@ class WayfairGetProductDimensions(BaseSourceDAG):
 
     def get_items_to_process(self, mode):
         path = self.path
-        all_items = WayfairService().get_product_variations(f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_detail_page', has_variations=False)
-        
+        # all_items = WayfairService().get_product_variations(f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_detail_page', has_variations=False)
+        all_items = json.load(open('data/wayfair/2025/9/29/output/bathtub_variations.json'))
+        all_items = [item['sku'] for item in all_items]
         if mode == 'all':
             return [
                 {
@@ -151,7 +149,8 @@ class WayfairGetProductInfo(BaseSourceDAG):
     def get_items_to_process(self, mode):
         path = self.path
         all_items = WayfairService().get_product_variations(f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_detail_page')
-        
+
+
         if mode == 'all':
             return [
                 {
@@ -219,7 +218,6 @@ class WayfairGetProductSpecification(BaseSourceDAG):
     def get_items_to_process(self, mode):
         path = self.path
         all_items = WayfairService().get_product_variations(f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_detail_page', has_variations=False)
-        
         if mode == 'all':
             return [
                 {
@@ -359,7 +357,9 @@ class WayfairGetProductReviews(BaseSourceDAG):
                      'params': {'hash': 'a636f23a2ad15b342db756fb5e0ea093'}
                      } for item in all_variations]
         elif mode == 'failed':
-            all_variations = WayfairService().get_product_variations(f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_detail_page', has_variations=False)
+            # all_variations = WayfairService().get_product_variations(f'data/wayfair/{datetime.now().year}/{datetime.now().month}/{datetime.now().day}/product_detail/product_detail_page', has_variations=False)
+            all_variations = json.load(open('data/wayfair/2025/9/29/output/bathtub_variations.json'))
+            all_variations = [item['sku'] for item in all_variations]
             success_variations = WayfairService().get_success_product_variations(self.path, has_variations=False)
             failed_variations = WayfairService().get_failed_product_variations(all_variations, success_variations, has_variations=False)
             return [{'sku': item,

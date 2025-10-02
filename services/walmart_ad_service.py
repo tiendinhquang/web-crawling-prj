@@ -126,15 +126,5 @@ class WalmartAdService:
     
 
 
-if __name__ == '__main__':
-    import asyncio
-    import json
-    
-    async def main():
-        walmart_ad = WalmartAdService()
-        walmart_ad.refresh_cookies_and_update_config()
-        response = await walmart_ad.get_report()
-        print(response)
-    asyncio.run(main())
-    pass
+
     

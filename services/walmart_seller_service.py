@@ -211,23 +211,3 @@ class WalmartSellerService:
 
 
 
-if __name__ == '__main__':
-    import asyncio
-    import json
-    
-    async def main():
-        walmart_seller = WalmartSellerService()
-        # await walmart_seller.refresh_cookies_and_update_config()
-        response = await walmart_seller.create_report(['ITEM'])
-        report_id = response[0]['report_id']
-        print(report_id)
-        # download_url = await walmart_seller.get_report(report_id)
-        # download_url = 'https://marketplace.walmartapis.com/v3/reports/getReport/buybox-report/BuyBox_10000001798_2025-09-16T062605.625000.zip?sv=2023-08-03&se=2025-09-16T07%3A38%3A07Z&sr=b&sp=r&sig=7PXb51eiYpsDU1bZPnbR7y54V8cfuFYjoOq4Yc22%2Bhc%3D'
-
-        # report_data = await walmart_seller.save_report(download_url, cfg = cfg)
-        # print(report_data)
-        # await walmart_seller.update_data_to_sharepoint(cfg)
-        pass
-    asyncio.run(main())
-    pass
-    

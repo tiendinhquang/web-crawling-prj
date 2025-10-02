@@ -978,16 +978,6 @@ def iload_data_to_db(table_key: str, tmp_table: str, df: pd.DataFrame, db_engine
 
 
 
-# if __name__ == "__main__":
-#     df = pd.read_csv('data/criteo/2025/8/8/output/capout_report_2025-08-08.csv')
-
-#     iload_data_to_db('lowes.capout_report', 'tmp_capout_report', df)
-
-
-
-
-
-
 
 
 

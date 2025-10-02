@@ -72,22 +72,3 @@ class LowesVendorService:
         return True
 
 
-if __name__ == "__main__":
-    import asyncio
-    async def main():
-        lowes_vendor_service = LowesVendorService()
-        start_date = datetime(2025, 6, 22)
-        end_date = datetime.now()
-        # await lowes_vendor_service.refresh_cookies_and_update_config()
-        # deductions = await lowes_vendor_service.get_rtm_deductions_list(start_date, end_date)
-        # print(deductions)
-        await lowes_vendor_service.refresh_cookies_and_update_config()
-    asyncio.run(main())
-    
-    # json_data = {'vendorId': 89026, 'vendorName': 'ATLAS INTERNATIONAL INC       ', 'updatedOn': '2025-08-20', 'updatedBy': 'DTCB054 ', 'invoiceNumber': None, 'storeNumber': 0, 'source': 'RTM', 'status': None, 'deductionStatus': None, 'trackingNumber': 'LOWRTM016959961', 'deductionNumber': 'DM9040DA', 'deductionDate': '2025-08-20', 'sellingLocation': None, 'deductionAmount': -3308.25, 'approvedAmount': 0, 'debitBackupSent': None, 'dmrlLowesComments': None, 'dmrlPONumber': None}
-    # url  ="https://vendorgateway.lowes.com/vendorinquiry/vendorinquiry-api/deduction/findRTMDeductionDetails"
-    # headers = get_header_config('lowes_vendor')
-    # cookies = get_cookie_config('lowes_vendor')
-    # response = requests.post(url,headers=headers,cookies=cookies, json=json_data)
-    # print(response.json())
-    # print(deductions)

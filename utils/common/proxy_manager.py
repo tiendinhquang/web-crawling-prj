@@ -320,22 +320,5 @@ def get_working_proxies_sync(limit: int = 100, proxy_path: Optional[str] = None)
         return None
 
 
-# # Example usage and testing
-if __name__ == '__main__':
-    try:
-        # Test the proxy manager
-        working_proxies = get_working_proxies_sync(limit=30)
-        
-        if working_proxies:
-            print(f"Found {len(working_proxies)} working proxies:")
-            for proxy in working_proxies[:10]:  # Show first 5
-                print(f"  - {proxy}")
-        else:
-            print("No working proxies found")
-            
-    except Exception as e:
-        logging.error(f"Error in main execution: {e}")
-        print(f"Error: {e}")
-
 
         
