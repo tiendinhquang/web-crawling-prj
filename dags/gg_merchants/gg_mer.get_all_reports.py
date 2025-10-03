@@ -13,6 +13,7 @@ sku_visibility = {
     'report_type': 'sku_visibility',
     'base_path': 'data/gg_merchants',
     
+    
 }
 
 download_config = {
@@ -69,7 +70,8 @@ class GGMerchantsSourceDAG(BaseReportsDAG):
         start_date = end_date - timedelta(days=report_config['date_range_days'])
         # start_date = datetime(2025, 1, 1)
         
-        return await service.create_sku_visibility_report(
+        return await service.create_report(
+            report_type=report_config['report_type'],
             start_date=start_date,
             end_date=end_date
         )
@@ -86,7 +88,7 @@ class GGMerchantsSourceDAG(BaseReportsDAG):
     
     def is_report_ready(self, status_response):
         """Check if a GG Merchants report is ready"""
-        status = status_response.get('status')
+        status = status_response.get('status', {}).get('status')
         logging.info(f"Checking if report is ready. Status: {status}, Full response: {status_response}")
         return status == 'DONE'
     
