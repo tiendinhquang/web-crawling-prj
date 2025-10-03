@@ -329,7 +329,7 @@ class GGAdsService:
             data = self._build_status_data(report_id)
 
             semaphore = asyncio.Semaphore(1)
-            headers = get_header_config('gg_ads_auction_insights')
+            headers = get_header_config('headers:gg_ads_auction_insights')
             
             response, metadata = await self.client.make_request_with_retry(
                 self.get_report_status_url,

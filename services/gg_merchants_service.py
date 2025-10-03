@@ -156,7 +156,7 @@ class GGMerchantsService:
         """
         try:
             await refresh_headers(
-                ['gg_merchants_create_report', 'gg_merchants_get_report_status'], 
+                ['headers:gg_merchants_create_report', 'headers:gg_merchants_get_report_status'], 
                 self.create_job_url,
                 payload={"force_new_session": force_new_session}
             )
@@ -263,7 +263,7 @@ class GGMerchantsService:
         try:
             params = self._build_status_params(report_id)
             semaphore = asyncio.Semaphore(1)
-            headers = get_header_config('gg_merchants_get_report_status')
+            headers = get_header_config('headers:gg_merchants_get_report_status')
 
             response, metadata = await self.client.make_request_with_retry(
                 self.get_report_url,
@@ -308,7 +308,7 @@ class GGMerchantsService:
         try:
             params = self._build_status_params(report_id)
             semaphore = asyncio.Semaphore(1)
-            headers = get_header_config('gg_merchants_get_report_status')
+            headers = get_header_config('headers:gg_merchants_get_report_status')
             
             response, metadata = await self.client.make_request_with_retry(
                 self.get_report_url,
